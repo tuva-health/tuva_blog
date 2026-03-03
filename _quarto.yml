@@ -12,6 +12,7 @@ project:
 
 website:
   title: The Tuva Project Blog
+  site-url: https://www.thetuvaproject.com/blog
 
 bibliography: references.bib
 
