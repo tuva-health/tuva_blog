@@ -1,1 +1,13 @@
+# Quarto generated output/cache
 /.quarto/
+/_book/
+/_freeze/
+quarto-render.log
+
+# Notebook and Quarto notebook intermediates
+/.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+**/*.quarto_ipynb
+
+# OS metadata
+.DS_Store

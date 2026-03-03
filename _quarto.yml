@@ -1,56 +1,26 @@
 project:
-  type: book
-
-book:
-  title: The Tuva Project
-  # author: "Norah Jones"
-  date: "12/22/2024"
-
-  # cover-image: mages/tuva-icon.png
-  # favicon: images/tuva-icon.png
-  chapters:
+  type: website
+  output-dir: _book
+  render:
     - index.qmd
-    - code-sets.qmd
-    - part: "Claims Data"
-      chapters:
-        - claims-data.qmd
-        - claims-data-elements.qmd
-        - claims-adr.qmd
-        - provider-data.qmd
-        - member-months.qmd
-        - attribution.qmd
-        - service-categories.qmd
-        - encounters.qmd
-        # - medications.qmd  
+    - about.qmd
+    - understanding-medicare-aco-assignment.qmd
+    - customizing-the-tuva-data-model.qmd
+    - building-a-claims-data-platform.qmd
+    - intro-dbt-for-healthcare.qmd
+    - the-problem-with-healthcare-data.qmd
 
-    - part: "Advanced Topics"
-      chapters:
-        # - emergency-dept.qmd
-        - acute-inpatient.ipynb
-        - readmissions.qmd
-        - risk-adjustment.qmd
-        
-    # - part: "Case Studies"
-    #   chapters:
-        # - oppty-analysis.qmd
-        # - hip-replacement.qmd
-        # - multiple-myeloma.qmd
-        # - cancer-drugs.qmd
-
-    # - part: "Appendix"
-    #   chapters:
-    #     - cms-claims.qmd
-
-    # - references.qmd
+website:
+  title: The Tuva Project Blog
 
 bibliography: references.bib
 
 format:
   html:
     theme: cosmo
+    page-navigation: false
     code-fold: true
-  pdf:
-    documentclass: scrreprt
-
-
-
+    css:
+      - home.css
+      - article.css
+    include-before-body: global-header.html

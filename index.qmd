@@ -1,3 +1,159 @@
-# Welcome {.unnumbered}
+<section class="landing-shell">
+<div class="article-grid" id="article-grid">
+<article class="article-card" data-search="Understanding Medicare ACO Assignment In Medicare ACOs member assignment is complex -- but it doesn't have to be. Mike Krahulec">
+<a href="./understanding-medicare-aco-assignment.html" class="article-card-link">
+<img src="img/blog/understanding-medicare-aco-assignment.jpg" alt="Understanding Medicare ACO Assignment" />
+<div class="card-body">
+<h3>Understanding Medicare ACO Assignment</h3>
+<p class="card-author">Mike Krahulec</p>
+<p class="card-date">February 19, 2026</p>
+<p class="card-copy">In Medicare ACOs member assignment is complex -- but it doesn't have to be.</p>
+<span class="card-cta">Read Article</span>
+</div>
+</a>
+</article>
 
-Welcome to the Tuva Project Knowledge Base!  This is an open-source book on healthcare data and analytics.
+<article class="article-card" data-search="Customizing the Tuva Data Model How Tuva v0.17.0 preserves custom extension columns across the core data model with a configurable prefix-based pass-through pattern. Rabee Zyoud">
+<a href="./customizing-the-tuva-data-model.html" class="article-card-link">
+<img src="img/blog/customizing-the-tuva-data-model.png" alt="Customizing the Tuva Data Model" />
+<div class="card-body">
+<h3>Customizing the Tuva Data Model</h3>
+<p class="card-author">Rabee Zyoud</p>
+<p class="card-date">February 12, 2026</p>
+<p class="card-copy">How Tuva v0.17.0 preserves custom extension columns across the core data model with a configurable prefix-based pass-through pattern.</p>
+<span class="card-cta">Read Article</span>
+</div>
+</a>
+</article>
+
+<article class="article-card" data-search="Building a Claims Data Platform A practical architecture guide for building claims analytics platforms, covering ingestion, normalization, data quality, adjustment handling, and analytics-ready models. It outlines implementation tradeoffs and concrete design decisions for scaling payer and value-based care use cases. Aaron Neiderhiser">
+<a href="./building-a-claims-data-platform.html" class="article-card-link">
+<img src="img/blog/building-a-claims-data-platform.jpg" alt="Building a Claims Data Platform" />
+<div class="card-body">
+<h3>Building a Claims Data Platform</h3>
+<p class="card-author">Aaron Neiderhiser</p>
+<p class="card-date">April 17, 2024</p>
+<p class="card-copy">A practical architecture guide for building claims analytics platforms, covering ingestion, normalization, data quality, adjustment handling, and analytics-ready models. It outlines implementation tradeoffs and concrete design decisions for scaling payer and value-based care use cases.</p>
+<span class="card-cta">Read Article</span>
+</div>
+</a>
+</article>
+
+<article class="article-card" data-search="Intro to dbt for Healthcare An implementation-oriented introduction to dbt for healthcare data teams, focused on project structure, warehouse execution, Git workflows, and built-in testing/documentation. The post explains why these software engineering patterns materially improve analytics reliability and delivery speed. Aaron Neiderhiser">
+<a href="./intro-dbt-for-healthcare.html" class="article-card-link">
+<img src="img/blog/intro-dbt-for-healthcare.png" alt="Intro to dbt for Healthcare" />
+<div class="card-body">
+<h3>Intro to dbt for Healthcare</h3>
+<p class="card-author">Aaron Neiderhiser</p>
+<p class="card-date">January 31, 2024</p>
+<p class="card-copy">An implementation-oriented introduction to dbt for healthcare data teams, focused on project structure, warehouse execution, Git workflows, and built-in testing/documentation. The post explains why these software engineering patterns materially improve analytics reliability and delivery speed.</p>
+<span class="card-cta">Read Article</span>
+</div>
+</a>
+</article>
+
+<article class="article-card" data-search="The Problem with Healthcare Data A technical breakdown of the three core barriers to reliable healthcare analytics: normalization, data quality, and high-level concept generation. It frames why these issues persist across claims and clinical data and why they must be addressed in the data model itself. Aaron Neiderhiser">
+<a href="./the-problem-with-healthcare-data.html" class="article-card-link">
+<img src="img/blog/the-problem-with-healthcare-data.png" alt="The Problem with Healthcare Data" />
+<div class="card-body">
+<h3>The Problem with Healthcare Data</h3>
+<p class="card-author">Aaron Neiderhiser</p>
+<p class="card-date">January 11, 2024</p>
+<p class="card-copy">A technical breakdown of the three core barriers to reliable healthcare analytics: normalization, data quality, and high-level concept generation. It frames why these issues persist across claims and clinical data and why they must be addressed in the data model itself.</p>
+<span class="card-cta">Read Article</span>
+</div>
+</a>
+</article>
+</div>
+
+<p id="no-results-message" class="no-results" hidden>
+No matching articles. Try a broader keyword.
+</p>
+</section>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const input = document.getElementById("global-article-search-input");
+  const cards = Array.from(document.querySelectorAll(".article-card"));
+  const noResults = document.getElementById("no-results-message");
+
+  if (!input || cards.length === 0 || !noResults) return;
+
+  const normalizeHref = (href) => {
+    if (!href) return "";
+    const withoutHash = href.split("#")[0];
+
+    try {
+      const parsed = new URL(withoutHash, window.location.href);
+      return parsed.pathname.replace(/^\/+/, "");
+    } catch (_) {
+      return withoutHash.replace(/^\.\//, "").replace(/^\/+/, "");
+    }
+  };
+
+  const cardRecords = cards.map((card) => {
+    const href = normalizeHref(card.querySelector("a")?.getAttribute("href"));
+    const basic = [
+      card.getAttribute("data-search") || "",
+      card.querySelector("h3")?.textContent || "",
+      card.querySelector(".card-copy")?.textContent || "",
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return { card, href, corpus: basic, basic };
+  });
+
+  const fullTextByPage = new Map();
+  const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const applyFilter = () => {
+    const query = input.value.trim().toLowerCase();
+    let visibleCount = 0;
+    const terms = query.split(/\s+/).filter(Boolean);
+
+    cardRecords.forEach((record) => {
+      const isMatch =
+        terms.length === 0 ||
+        terms.every((term) => {
+          if (term.length < 3) {
+            return record.corpus.includes(term);
+          }
+
+          const wordRegex = new RegExp(`\\b${escapeRegex(term)}\\b`, "i");
+          return wordRegex.test(record.corpus);
+        });
+      record.card.hidden = !isMatch;
+      if (isMatch) visibleCount += 1;
+    });
+
+    noResults.hidden = visibleCount !== 0;
+  };
+
+  input.addEventListener("input", applyFilter);
+
+  fetch("./search.json")
+    .then((response) => (response.ok ? response.json() : []))
+    .then((entries) => {
+      if (!Array.isArray(entries)) return;
+
+      entries.forEach((entry) => {
+        const href = normalizeHref(entry?.href);
+        if (!href || href === "index.html") return;
+
+        const chunk = [entry?.title || "", entry?.section || "", entry?.text || ""]
+          .join(" ")
+          .toLowerCase();
+        fullTextByPage.set(href, `${fullTextByPage.get(href) || ""} ${chunk}`);
+      });
+
+      cardRecords.forEach((record) => {
+        const indexed = fullTextByPage.get(record.href) || "";
+        record.corpus = `${record.basic} ${indexed}`;
+      });
+
+      applyFilter();
+    })
+    .catch(() => {});
+});
+</script>

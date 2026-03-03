@@ -1,0 +1,127 @@
+.is-article .global-article-search {
+  display: none;
+}
+
+.is-article .header-actions {
+  display: none;
+}
+
+.is-article #quarto-margin-sidebar {
+  display: block !important;
+  position: sticky;
+  top: 86px;
+  align-self: flex-start;
+  width: 280px;
+  flex: 0 0 280px;
+  order: 2;
+  margin-top: 0;
+}
+
+.is-article.no-toc #quarto-margin-sidebar {
+  display: none !important;
+}
+
+.is-article #quarto-content {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 2rem;
+  max-width: 1260px;
+  margin: 0 auto;
+}
+
+.is-article.no-toc #quarto-content {
+  max-width: 980px;
+}
+
+.is-article main.content {
+  order: 1;
+  flex: 1 1 auto;
+  max-width: 920px !important;
+  margin: 0 !important;
+}
+
+.is-article #title-block-header {
+  display: block !important;
+  margin: 0.55rem 0 0.35rem;
+  border: 0;
+  padding: 0;
+}
+
+.is-article #title-block-header .title {
+  margin: 0;
+  color: var(--tuva-ink);
+  font-size: clamp(2rem, 3.1vw, 2.75rem);
+  line-height: 1.08;
+  font-weight: 800;
+}
+
+.is-article #title-block-header .quarto-title-meta {
+  display: none !important;
+}
+
+.is-article #quarto-document-content > :not(.global-blog-header):not(script) {
+  max-width: 860px;
+}
+
+.is-article .article-byline {
+  margin: 0.2rem 0 0.9rem;
+  color: #334b60;
+  font-size: 1.05rem;
+  font-style: italic;
+}
+
+.is-article .article-hero {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 620px;
+  object-fit: cover;
+  border-radius: 0.9rem;
+  border: 1px solid #dbe4ec;
+  margin: 0 0 0.95rem;
+}
+
+.is-article .article-bio {
+  margin: 0 0 1.1rem;
+  color: #465d70;
+  font-size: 0.98rem;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.is-article .article-bio a {
+  color: #2b5f8f;
+  font-weight: 600;
+}
+
+.is-article #quarto-document-content img.img-fluid,
+.is-article #quarto-document-content img.img_ev3q {
+  max-width: 100%;
+  height: auto;
+}
+
+.is-article #TOC {
+  position: static;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+@media (max-width: 960px) {
+  .is-article #quarto-content {
+    display: block !important;
+    max-width: none;
+  }
+
+  .is-article #quarto-margin-sidebar {
+    display: none !important;
+    margin-top: 0;
+    width: auto;
+  }
+
+  .is-article main.content {
+    max-width: 100% !important;
+  }
+}
