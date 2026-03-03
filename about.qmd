@@ -1,0 +1,29 @@
+---
+title: "About"
+toc: false
+number-sections: false
+---
+
+The goal of the Tuva Project Blog is to share practical knowledge about doing healthcare analytics.
+
+Anyone can contribute.
+
+The blog source lives on GitHub: [tuva-health/tuva_blog](https://github.com/tuva-health/tuva_blog).
+
+## How to Contribute a New Article
+
+1. Pick a topic that helps healthcare data teams solve a real analytics problem.
+2. Fork the repository and create a branch for your post.
+3. Create a new `.qmd` file in the project root with front matter like title/date/toc settings.
+4. Add a hero image under `img/blog/` and reference it in your post.
+5. Add a card for the post in `index.qmd` so it appears on the landing page.
+6. Add your new `.qmd` file to the `project.render` list in `_quarto.yml`.
+7. Run `quarto render` and quickly review layout, links, images, and search behavior.
+8. Open a pull request with a short summary and any screenshots needed for review.
+
+## Ideas and Feedback
+
+Have an idea for a blog but want to discuss it with Aaron first?
+
+- Message `@Aaron` in the [Tuva Slack community](https://join.slack.com/t/thetuvaproject/shared_invite/zt-35dtjo7sz-QnTKVZJaEErr35cxFZ2QMA)
+- Email him at [aaron@tuvahealth.com](mailto:aaron@tuvahealth.com)

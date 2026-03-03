@@ -1,0 +1,27 @@
+<div class="global-blog-header" role="banner">
+  <a class="blog-brand" href="./index.html" aria-label="The Tuva Project Blog">
+    <img src="img/tuva-favicon.ico" alt="The Tuva Project logo icon" />
+    <span>The Tuva Project Blog</span>
+  </a>
+  <div class="header-actions">
+    <a class="header-about-link" href="./about.html" aria-label="About this blog">About</a>
+    <form class="global-article-search" role="search" onsubmit="return false;">
+      <input
+        id="global-article-search-input"
+        type="search"
+        placeholder="Search articles"
+        aria-label="Search articles"
+      />
+    </form>
+  </div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const isHome = !!document.getElementById("article-grid");
+  const hasToc = !!document.querySelector("#TOC .nav-link");
+  document.documentElement.classList.toggle("is-home", isHome);
+  document.documentElement.classList.toggle("is-article", !isHome);
+  document.documentElement.classList.toggle("has-toc", hasToc);
+  document.documentElement.classList.toggle("no-toc", !hasToc);
+});
+</script>
