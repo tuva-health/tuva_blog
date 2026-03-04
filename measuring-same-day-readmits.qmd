@@ -194,10 +194,6 @@ To answer this, we bucketed discharge dispositions into seven categories and mea
 <summary><strong>Show/hide SQL query</strong></summary>
 
 ```sql
-with params as (
-    select 'medicare_lds' as target_data_source
-),
-
 index_encounters as (
     select
         e.encounter_id,
@@ -234,9 +230,8 @@ index_encounters as (
             else 'Other'
         end as discharge_status_bucket
     from core.encounter e
-    inner join params p
-        on e.data_source = p.target_data_source
-    where e.encounter_type = 'acute inpatient'
+    where e.data_source = 'medicare_lds'
+      and e.encounter_type = 'acute inpatient'
       and e.encounter_end_date is not null
       and e.facility_id is not null
 ),
