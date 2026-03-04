@@ -1,5 +1,18 @@
 <section class="landing-shell">
 <div class="article-grid" id="article-grid">
+<article class="article-card" data-search="Measuring Same-Day Readmits How to measure same-day readmits for acute inpatient encounters in Tuva, including discharge-status patterns and same-primary-diagnosis checks. Aaron Neiderhiser Andreas Martinson">
+<a href="./measuring-same-day-readmits.html" class="article-card-link">
+<img src="img/blog/same-day-readmits.png" alt="Measuring Same-Day Readmits" />
+<div class="card-body">
+<h3>Measuring Same-Day Readmits</h3>
+<p class="card-author">Aaron Neiderhiser &amp; Andreas Martinson</p>
+<p class="card-date">March 4, 2026</p>
+<p class="card-copy">How to measure same-day readmits for acute inpatient encounters in Tuva, including discharge-status patterns and same-primary-diagnosis checks.</p>
+<span class="card-cta">Read Article</span>
+</div>
+</a>
+</article>
+
 <article class="article-card" data-search="Understanding Medicare ACO Assignment In Medicare ACOs member assignment is complex -- but it doesn't have to be. Mike Krahulec">
 <a href="https://www.thetuvaproject.com/blog/understanding-medicare-aco-assignment" class="article-card-link">
 <img src="img/blog/understanding-medicare-aco-assignment.jpg" alt="Understanding Medicare ACO Assignment" />
