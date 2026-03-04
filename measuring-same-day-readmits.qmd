@@ -194,6 +194,7 @@ To answer this, we bucketed discharge dispositions into seven categories and mea
 <summary><strong>Show/hide SQL query</strong></summary>
 
 ```sql
+with
 index_encounters as (
     select
         e.encounter_id,
