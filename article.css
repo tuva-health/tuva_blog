@@ -100,6 +100,39 @@
   height: auto;
 }
 
+/* Remove theme-provided section heading separators on article pages */
+.is-article #quarto-document-content h2,
+.is-article #quarto-document-content h3 {
+  border-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.is-article #quarto-document-content h2.anchored,
+.is-article #quarto-document-content h3.anchored {
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin-bottom: 0.7rem !important;
+}
+
+.is-article #quarto-document-content h2.anchored::before,
+.is-article #quarto-document-content h2.anchored::after,
+.is-article #quarto-document-content h3.anchored::before,
+.is-article #quarto-document-content h3.anchored::after {
+  content: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  display: none !important;
+}
+
+.is-article #quarto-document-content section.level2,
+.is-article #quarto-document-content section.level3 {
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  padding-top: 0 !important;
+}
+
 .is-article #TOC {
   position: static;
   max-height: calc(100vh - 120px);
@@ -124,4 +157,12 @@
   .is-article main.content {
     max-width: 100% !important;
   }
+}
+
+.is-article .article-byline-date {
+  display: block;
+  font-size: inherit;
+  font-style: inherit;
+  color: inherit;
+  line-height: inherit;
 }
