@@ -1,7 +1,7 @@
 <section class="landing-shell">
 <div class="article-grid" id="article-grid">
 <article class="article-card" data-search="Measuring Same-Day Readmits How to measure same-day readmits for acute inpatient encounters in Tuva, including discharge-status patterns and same-primary-diagnosis checks. Aaron Neiderhiser Andreas Martinson">
-<a href="/blog/measuring-same-day-readmits" class="article-card-link">
+<a href="https://thetuvaproject.com/blog/measuring-same-day-readmits" class="article-card-link">
 <img src="img/blog/same-day-readmits.png" alt="Measuring Same-Day Readmits" />
 <div class="card-body">
 <h3>Measuring Same-Day Readmits</h3>
