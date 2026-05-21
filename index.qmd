@@ -1,7 +1,20 @@
 <section class="landing-shell">
 <div class="article-grid" id="article-grid">
+<article class="article-card" data-search="Adjustments, Denials, and Reversals How to model and identify ADR behavior in claims data, with runnable SQL against Tuva input_layer.medical_claim for new IDs, same IDs, and hybrid patterns. Aaron Neiderhiser">
+<a href="adjustments-denials-reversals.html" class="article-card-link">
+<img src="img/blog/adjustments-denials-reversals.jpg" alt="Adjustments, Denials, and Reversals" />
+<div class="card-body">
+<h3>Adjustments, Denials, and Reversals</h3>
+<p class="card-author">Aaron Neiderhiser</p>
+<p class="card-date">March 12, 2026</p>
+<p class="card-copy">How to model and identify ADR behavior in claims data, with runnable SQL against Tuva input_layer.medical_claim for new IDs, same IDs, and hybrid patterns.</p>
+<span class="card-cta">Read Article</span>
+</div>
+</a>
+</article>
+
 <article class="article-card" data-search="Measuring Same-Day Readmits How to measure same-day readmits for acute inpatient encounters in Tuva, including discharge-status patterns and same-primary-diagnosis checks. Aaron Neiderhiser Andreas Martinson">
-<a href="https://thetuvaproject.com/blog/measuring-same-day-readmits" class="article-card-link">
+<a href="measuring-same-day-readmits.html" class="article-card-link">
 <img src="img/blog/same-day-readmits.png" alt="Measuring Same-Day Readmits" />
 <div class="card-body">
 <h3>Measuring Same-Day Readmits</h3>
@@ -14,7 +27,7 @@
 </article>
 
 <article class="article-card" data-search="Understanding Medicare ACO Assignment In Medicare ACOs member assignment is complex -- but it doesn't have to be. Mike Krahulec">
-<a href="https://www.thetuvaproject.com/blog/understanding-medicare-aco-assignment" class="article-card-link">
+<a href="understanding-medicare-aco-assignment.html" class="article-card-link">
 <img src="img/blog/understanding-medicare-aco-assignment.jpg" alt="Understanding Medicare ACO Assignment" />
 <div class="card-body">
 <h3>Understanding Medicare ACO Assignment</h3>
@@ -27,7 +40,7 @@
 </article>
 
 <article class="article-card" data-search="Customizing the Tuva Data Model How Tuva v0.17.0 preserves custom extension columns across the core data model with a configurable prefix-based pass-through pattern. Rabee Zyoud">
-<a href="https://www.thetuvaproject.com/blog/customizing-the-tuva-data-model" class="article-card-link">
+<a href="customizing-the-tuva-data-model.html" class="article-card-link">
 <img src="img/blog/customizing-the-tuva-data-model.png" alt="Customizing the Tuva Data Model" />
 <div class="card-body">
 <h3>Customizing the Tuva Data Model</h3>
@@ -40,7 +53,7 @@
 </article>
 
 <article class="article-card" data-search="Building a Claims Data Platform A practical architecture guide for building claims analytics platforms, covering ingestion, normalization, data quality, adjustment handling, and analytics-ready models. It outlines implementation tradeoffs and concrete design decisions for scaling payer and value-based care use cases. Aaron Neiderhiser">
-<a href="https://www.thetuvaproject.com/blog/building-a-claims-data-platform" class="article-card-link">
+<a href="building-a-claims-data-platform.html" class="article-card-link">
 <img src="img/blog/building-a-claims-data-platform.jpg" alt="Building a Claims Data Platform" />
 <div class="card-body">
 <h3>Building a Claims Data Platform</h3>
@@ -53,7 +66,7 @@
 </article>
 
 <article class="article-card" data-search="Intro to dbt for Healthcare An implementation-oriented introduction to dbt for healthcare data teams, focused on project structure, warehouse execution, Git workflows, and built-in testing/documentation. The post explains why these software engineering patterns materially improve analytics reliability and delivery speed. Aaron Neiderhiser">
-<a href="https://www.thetuvaproject.com/blog/intro-dbt-for-healthcare" class="article-card-link">
+<a href="intro-dbt-for-healthcare.html" class="article-card-link">
 <img src="img/blog/intro-dbt-for-healthcare.png" alt="Intro to dbt for Healthcare" />
 <div class="card-body">
 <h3>Intro to dbt for Healthcare</h3>
@@ -66,7 +79,7 @@
 </article>
 
 <article class="article-card" data-search="The Problem with Healthcare Data A technical breakdown of the three core barriers to reliable healthcare analytics: normalization, data quality, and high-level concept generation. It frames why these issues persist across claims and clinical data and why they must be addressed in the data model itself. Aaron Neiderhiser">
-<a href="https://www.thetuvaproject.com/blog/the-problem-with-healthcare-data" class="article-card-link">
+<a href="the-problem-with-healthcare-data.html" class="article-card-link">
 <img src="img/blog/the-problem-with-healthcare-data.png" alt="The Problem with Healthcare Data" />
 <div class="card-body">
 <h3>The Problem with Healthcare Data</h3>

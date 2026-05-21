@@ -1,3 +1,15 @@
 [build]
   publish = "_book"
-  command = "curl -L -o quarto.tar.gz https://github.com/quarto-dev/quarto-cli/releases/download/v1.6.43/quarto-1.6.43-linux-amd64.tar.gz && tar -xzf quarto.tar.gz && export PATH=\"$PWD/quarto-1.6.43/bin:$PATH\" && quarto render"
+  command = "curl -L -o quarto.tar.gz https://github.com/quarto-dev/quarto-cli/releases/download/v1.6.43/quarto-1.6.43-linux-amd64.tar.gz && tar -xzf quarto.tar.gz && export PATH=\"$PWD/quarto-1.6.43/bin:$PATH\" && quarto render && quarto render claims-data-analytics"
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/"
+  to = "/claims-data-analytics/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/*"
+  to = "/claims-data-analytics/:splat"
+  status = 200
+  force = true

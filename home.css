@@ -73,14 +73,23 @@ textarea {
   gap: 0.75rem;
 }
 
+.site-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.site-nav a,
 .header-about-link {
   color: #2f506b;
   text-decoration: none;
   font-weight: 700;
   font-size: 0.96rem;
   line-height: 1;
+  white-space: nowrap;
 }
 
+.site-nav a:hover,
 .header-about-link:hover {
   color: var(--tuva-ink);
   text-decoration: underline;
@@ -285,6 +294,12 @@ main#quarto-document-content {
   .header-actions {
     width: 100%;
     gap: 0.6rem;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-nav {
+    flex-wrap: wrap;
   }
 
   .global-article-search {

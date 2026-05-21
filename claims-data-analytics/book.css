@@ -1,0 +1,70 @@
+:root {
+  --tuva-ink: #10273d;
+  --tuva-slate: #4e6173;
+  --tuva-border: #dbe4ec;
+  --tuva-bg-start: #eef3f9;
+  --tuva-bg-end: #f6f9fc;
+  --tuva-font-base: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu,
+    Cantarell, "Noto Sans", sans-serif, BlinkMacSystemFont, Helvetica, Arial,
+    sans-serif;
+}
+
+body {
+  font-family: var(--tuva-font-base);
+}
+
+.claims-book-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1.35rem;
+  border-bottom: 1px solid var(--tuva-border);
+  background: linear-gradient(135deg, var(--tuva-bg-start), var(--tuva-bg-end));
+}
+
+.claims-book-brand,
+.claims-book-nav {
+  display: inline-flex;
+  align-items: center;
+}
+
+.claims-book-brand {
+  gap: 0.75rem;
+  color: var(--tuva-ink);
+  text-decoration: none;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.claims-book-brand img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.claims-book-brand span {
+  font-size: clamp(1.15rem, 2vw, 1.5rem);
+}
+
+.claims-book-nav {
+  gap: 1rem;
+}
+
+.claims-book-nav a {
+  color: var(--tuva-slate);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.claims-book-nav a:hover {
+  color: var(--tuva-ink);
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .claims-book-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

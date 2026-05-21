@@ -2,10 +2,6 @@
   display: none;
 }
 
-.is-article .header-actions {
-  display: none;
-}
-
 .is-article #quarto-margin-sidebar {
   display: block !important;
   position: sticky;
