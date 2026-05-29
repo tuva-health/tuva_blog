@@ -110,16 +110,9 @@ For example, is bill_type_code important? Which use cases (e.g. metrics)
 can't I pursue if I don't get this field? These are the types of
 questions you'll need to think through and be able to answer.
 
-It's a good practice to provide a data dictionary to your data provider
-to let them know the data you're looking for. If you're planning to use
-Tuva can you share the data dictionary for the [Tuva Input
-Layer](https://www.thetuvaproject.com/input-layer). It's a pretty
-standard, normal looking claims data model. In certain cases the data
-provider will send you the data already in this format. We also provide
-guidance in <a
-href="https://docs.google.com/spreadsheets/d/1tzLnmEB_Z-34QfkIiZhFpV2Zzr9pn-mBUotlvAZ5D7U/edit?usp=sharing"
-rel="noopener noreferrer" target="_blank">this spreadsheet</a> for which
-fields are needed for which data marts in Tuva.
+If you're planning to use Tuva, check out the [Input Layer data
+dictionary](https://www.thetuvaproject.com/input-layer), which is what
+you need to map your source data to in order to run Tuva.
 
 ## Adjustments, Denials, and Reversals
 
