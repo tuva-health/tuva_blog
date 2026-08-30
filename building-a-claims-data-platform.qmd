@@ -125,7 +125,7 @@ throw off your analytics.
 
 We provide a longer discussion of claim adjustments, denials, and
 reversals, including tips for how to identify them
-[here](https://www.thetuvaproject.com/knowledge/data-sources/claims-data/adjustments-denials-reversals).
+[in the Claims ADR guide](https://thetuvaproject.com/guides/claims-adr).
 However to briefly summarize there are two approaches you should take.
 
 First, ask your claims data provider how you should identify these

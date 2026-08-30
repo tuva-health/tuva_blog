@@ -25,7 +25,6 @@ book:
         - data-sources/claims-data/claims-data-sources.qmd
         - data-sources/claims-data/cost-field-relationships.qmd
         - data-sources/claims-data/providers.qmd
-        - data-sources/claims-data/adjustments-denials-reversals.qmd
         - data-sources/claims-data/incurred-paid-runout.qmd
         - data-sources/pharmacy-claims-data.qmd
         - data-sources/provider-data.qmd

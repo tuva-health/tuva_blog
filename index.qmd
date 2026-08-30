@@ -1,18 +1,5 @@
 <section class="landing-shell">
 <div class="article-grid" id="article-grid">
-<article class="article-card" data-search="Adjustments, Denials, and Reversals How to model and identify ADR behavior in claims data, with runnable SQL against Tuva input_layer.medical_claim for new IDs, same IDs, and hybrid patterns. Aaron Neiderhiser">
-<a href="adjustments-denials-reversals.html" class="article-card-link">
-<img src="img/blog/adjustments-denials-reversals.jpg" alt="Adjustments, Denials, and Reversals" />
-<div class="card-body">
-<h3>Adjustments, Denials, and Reversals</h3>
-<p class="card-author">Aaron Neiderhiser</p>
-<p class="card-date">March 12, 2026</p>
-<p class="card-copy">How to model and identify ADR behavior in claims data, with runnable SQL against Tuva input_layer.medical_claim for new IDs, same IDs, and hybrid patterns.</p>
-<span class="card-cta">Read Article</span>
-</div>
-</a>
-</article>
-
 <article class="article-card" data-search="Measuring Same-Day Readmits How to measure same-day readmits for acute inpatient encounters in Tuva, including discharge-status patterns and same-primary-diagnosis checks. Aaron Neiderhiser Andreas Martinson">
 <a href="measuring-same-day-readmits.html" class="article-card-link">
 <img src="img/blog/same-day-readmits.png" alt="Measuring Same-Day Readmits" />

@@ -4,7 +4,6 @@ project:
   render:
     - index.qmd
     - about.qmd
-    - adjustments-denials-reversals.qmd
     - measuring-same-day-readmits.qmd
     - understanding-medicare-aco-assignment.qmd
     - customizing-the-tuva-data-model.qmd

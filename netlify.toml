@@ -3,6 +3,42 @@
   command = "curl -L -o quarto.tar.gz https://github.com/quarto-dev/quarto-cli/releases/download/v1.6.43/quarto-1.6.43-linux-amd64.tar.gz && tar -xzf quarto.tar.gz && export PATH=\"$PWD/quarto-1.6.43/bin:$PATH\" && quarto render && quarto render claims-data-analytics"
 
 [[redirects]]
+  from = "/adjustments-denials-reversals"
+  to = "https://thetuvaproject.com/guides/claims-adr"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/adjustments-denials-reversals/"
+  to = "https://thetuvaproject.com/guides/claims-adr"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/adjustments-denials-reversals.html"
+  to = "https://thetuvaproject.com/guides/claims-adr"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/adjustments-denials-reversals"
+  to = "https://thetuvaproject.com/guides/claims-adr"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/adjustments-denials-reversals/"
+  to = "https://thetuvaproject.com/guides/claims-adr"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/adjustments-denials-reversals.html"
+  to = "https://thetuvaproject.com/guides/claims-adr"
+  status = 301
+  force = true
+
+[[redirects]]
   from = "https://knowledge.thetuvaproject.com/"
   to = "/claims-data-analytics/index.html"
   status = 200
