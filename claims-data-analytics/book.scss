@@ -1,0 +1,38 @@
+/*-- scss:defaults --*/
+
+// Use Quarto's Cosmo book geometry and typography with Tuva's blue accent.
+$primary: #216b91;
+$font-size-root: 18px;
+
+/*-- scss:rules --*/
+
+.sidebar-title { color: $primary; }
+.sidebar-item-container .active,
+nav[role="doc-toc"] a.active { font-weight: 700; }
+
+// Heading measurements match the reference book; body text uses Cosmo defaults.
+#title-block-header.quarto-title-block.default .quarto-title > h1.title { margin-bottom: .5rem; }
+h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-block: 2rem 1rem;
+}
+h3, h4, h5 { margin-top: 1.5em; }
+h3 { font-size: 1.2rem; font-weight: 500; }
+h4 { font-size: 1.1rem; }
+h5 { font-size: 1rem; }
+.quarto-section-identifier { color: #6c6c6c; font-weight: 400; }
+
+code { color: #373a3c; }
+code a:any-link { text-decoration: underline; text-decoration-color: #ccc; }
+pre { background-image: linear-gradient(160deg, #f8f8f8, #f1f1f1); }
+
+// Keep claims tables, equations, and walkthroughs within the reading column.
+.math.display { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.video { width: 100%; aspect-ratio: 16 / 9; border: 0; }
+@media (max-width: 991.98px) {
+  main .table { display: block; max-width: 100%; overflow-x: auto; }
+}
+@media print {
+  .video { display: none; }
+}

@@ -3,162 +3,115 @@ id: encounters
 title: "Encounters"
 ---
 
-The Tuva encounter grouper organizes claims into encounters, assigning each claim and claim line to exactly one encounter. An encounter represents the interaction between a patient and a healthcare provider.  For inpatient encounters, this encompasses the entire duration of an inpatient stay, which spans multiple days.  Tuva consolidates all claims billed intermittently throughout a patient's stay into a single encounter, regardless of the number of claims involved.  In most outpatient and office-based settings, an encounter typically spans a single day and groups together all claims that occurred on that day within that specific care setting.
+A patient goes to the emergency department, receives imaging, and is admitted to the hospital. The hospital submits a facility claim. The emergency physician, radiologist, and hospitalist submit professional claims. A long stay may produce several hospital bills.
 
-Encounters are summarized into encounter groups for organizational purposes.  Below is an overview of the available encounter types and groups.
+How many times did the patient receive care? Counting claims will not answer that question.
 
-| ENCOUNTER_GROUP | ENCOUNTER_TYPE                      |
-|-----------------|-------------------------------------|
-| inpatient       | acute inpatient                     |
-| inpatient       | inpatient hospice                   |
-| inpatient       | inpatient psych                     |
-| inpatient       | inpatient rehabilitation            |
-| inpatient       | inpatient skilled nursing           |
-| inpatient       | inpatient substance use             |
-| outpatient      | ambulatory surgery center           |
-| outpatient      | dialysis                            |
-| outpatient      | emergency department                |
-| outpatient      | home health                         |
-| outpatient      | outpatient hospital or clinic       |
-| outpatient      | outpatient hospice                  |
-| outpatient      | outpatient injections               |
-| outpatient      | outpatient psych                    |
-| outpatient      | outpatient pt/ot/st                 |
-| outpatient      | outpatient radiology                |
-| outpatient      | outpatient rehabilitation           |
-| outpatient      | outpatient substance use            |
-| outpatient      | outpatient surgery                  |
-| outpatient      | urgent care                         |
-| office based    | office visit                        |
-| office based    | office visit injections             |
-| office based    | office visit pt/ot/st               |
-| office based    | office visit radiology              |
-| office based    | office visit surgery                |
-| office based    | office visit - other                |
-| office based    | telehealth                          |
-| other           | ambulance - orphaned                |
-| other           | dme - orphaned                      |
-| other           | lab - orphaned                      |
-| other           | orphaned claim                      |
+In this chapter, we'll discuss **encounter grouping**: the work of organizing billed services into visits and stays. We'll begin with the difference between claims and encounters, then examine inpatient continuity, outpatient grouping, and the checks that make encounter-based analytics trustworthy.
 
-The output of the encounter grouper is the Encounter table in the Core Data Model.  The core.encounter table has flags associated with each encounter making it easy to find specific claims or claim lines that occurred during that encounter. Some flags apply only to specific encounter types, like delivery, which applies only to acute inpatient. The available flags are:
+## Choose the unit of care
 
-- observation
-- lab 
-- dme
-- ambulance
-- pharmacy
-- emergency department (for example an acute inpatient encounter where the patient came in through the ED)
-- delivery 
-- delivery_type (cesarean or vaginal)
-- newborn
-- nicu
+An encounter represents a defined interaction between a patient and the healthcare system. An inpatient encounter generally represents a stay. An outpatient encounter might represent an emergency department visit, an office visit, or an imaging service. The definition depends on the care setting and the question we are trying to answer.
 
-To count the number of inpatient encounters where the patient was in observation status during the stay, you can sum the observation flags and count the encounter IDs.
+Three units appear throughout claims analytics:
 
-```sql
-select sum(observation_flag) as encounters_with_observation
-,count(encounter_id) as total_encounters
-from core.encounter
-where encounter_type = 'acute inpatient'
-```
+| Unit | Example | Main purpose |
+|---|---|---|
+| Claim or claim line | A hospital bill or a physician service line | Describes billed services and financial transactions |
+| Encounter | A hospital stay or office visit assembled from relevant claims | Measures visits, stays, and their associated services |
+| Episode | A joint replacement and related care over a defined period | Studies a course of treatment that may cross settings |
 
-The start of an encounter is defined by an anchor claim that has been assigned to the same service category as the encounter type. An anchor can be either professional or institutional depending on the encounter type. 
+One encounter can contain many claims. One claim can contain lines associated with different service dates or encounters. An episode may include a hospitalization, rehabilitation, and follow-up office visits. These relationships are why the claim-line-to-encounter crosswalk is as important as the final encounter summary.
 
-The date field used in the encounter algorithm is determined using the following priority of date fields (resulting in the first non null value):
-- **start_date** -> admission_date / claim_line_start_date / claim_start_date
-- **end_date** -> discharge_date / claim_line_end_date / claim_end_date
+An encounter derived from claims is also different from an encounter recorded in an electronic health record. The EHR reflects the provider's operational workflow. Claims reflect billing across organizations. Neither identifier can be assumed to map one-to-one to the other.
 
-### Inpatient
+## Build encounters from anchor services
 
-Inpatient encounters are created when an institutional claim with the service category corresponding to one of the inpatient encounter types occurs. The Patient/Date/NPI continuity algorithm checks if a claim overlaps with another claim, with the same facility NPI, person_id, and data_source. It also adds a specific check for the case where the end date and start date of two claims are within a day, checking if the discharge disposition code is 30 (still patient). This logic is in place to avoid grouping together claims where a patient is discharged and readmitted on the same day.
+A common approach starts with an **anchor**: a claim or service that supplies evidence for a particular encounter. An institutional acute inpatient claim can anchor a hospitalization. An office evaluation can anchor an office visit. Other lines are then linked to the encounter using setting-specific rules.
 
-Each inpatient encounter type is listed below with the algorithm, anchor, and anchor claim type.
+The main ingredients are patient identity, data source, service category, dates, and provider or facility information. Tuva's [encounter models](https://github.com/tuva-health/tuva-core/tree/main/models/claims_preprocessing/encounters) implement different rules for different settings rather than treating every same-day service as a single visit.
 
+A source identifier matters. Two payers can use the same claim number for unrelated claims. The same patient can also appear in multiple datasets containing overlapping care. Preserve the source's claim identity and resolve cross-source duplication deliberately; an identical date is not enough to establish that two records describe the same event.
 
-| ENCOUNTER_GROUP | ENCOUNTER_TYPE                      | Algorithm Type    | Service Category Anchor     | Anchor Claim Type |
-|-----------------|-------------------------------------|-------------------|-----------------------------|-------------------|
-| inpatient       | acute inpatient                     | patient/date/npi continuity| acute inpatient             | institutional only|
-| inpatient       | inpatient hospice                   | patient/date/npi continuity| inpatient hospice           | institutional only|
-| inpatient       | inpatient psych                     | patient/date/npi continuity| inpatient psychiatric       | institutional only|
-| inpatient       | inpatient skilled nursing           | patient/date/npi continuity| skilled nursing             | institutional only|
-| inpatient       | inpatient substance use             | patient/date/npi continuity| inpatient substance use     | institutional only|
-| inpatient       | inpatient rehabilitation            | patient/date/npi continuity| inpatient rehabilitation    | institutional only|
+Dates need similar attention. An admission date, line service date, and billing statement start date have different meanings. Tuva's [claims staging logic](https://github.com/tuva-health/tuva-core/blob/9cf2d1f77012d0c6e015cd0d4d5e920540702820/models/claims_preprocessing/encounters/staging/encounters__stg_medical_claim.sql) uses admission and discharge dates when present, followed by line dates and claim dates. This provides a usable fallback, but it does not make a billing-period boundary equivalent to a clinical admission or discharge. Missing-date patterns remain part of the interpretation.
 
-A simplified example of the algorithm is shown below. These 3 claims would be joined together into one encounter:
+## Reconstruct an inpatient stay
 
-| patient_name | claim_id | start_date | end_date  | discharge disposition code | encounter_id |
-|--------------|----------|------------|-----------|----------------------------|--------------|
-| john smith   | 1        | 1/1/2020   | 1/31/2020 | 30                         | 1            |
-| john smith   | 2        | 2/1/2020   | 2/28/2020 | 30                         | 1            |
-| john smith   | 3        | 3/1/2020   | 3/14/2020 | 01                         | 1            |
+The first inpatient task is to distinguish multiple bills for one stay from multiple stays. Long stays are especially likely to cross billing periods.
 
-These claims that overlap would also be grouped together:
+Consider these illustrative facility claims for one patient at one hospital:
 
-| patient_name | claim_id | start_date | end_date  | encounter_id |
-|--------------|----------|------------|-----------|--------------|
-| john smith   | 1        | 1/1/2020   | 1/31/2020 | 1            |
-| john smith   | 2        | 1/14/2020  | 1/28/2020 | 1            |
-| john smith   | 3        | 3/1/2020   | 3/14/2020 | 2            |
+| Claim | Start | End | Discharge status | Interpretation |
+|---|---|---|---|---|
+| A | January 20 | January 31 | Still a patient | Interim bill |
+| B | February 1 | February 10 | Discharged home | Continuation and discharge |
+| C | February 18 | February 21 | Discharged home | Later admission |
 
-These claims would not be joined together since the discharge code indicates the patient was discharged to home:
+Claims A and B support a single stay from January 20 through February 10. Claim C supports another stay. Counting facility claims would report three admissions instead of two.
 
-| patient_name | claim_id | start_date | end_date  | discharge disposition code | encounter_id |
-|--------------|----------|------------|-----------|----------------------------|--------------|
-| john smith   | 1        | 1/1/2020   | 1/31/2020 | 01                         | 1            |
-| john smith   | 2        | 2/1/2020   | 2/28/2020 | 30                         | 2            |
+Tuva's [acute inpatient grouping logic](https://github.com/tuva-health/tuva-core/blob/9cf2d1f77012d0c6e015cd0d4d5e920540702820/models/claims_preprocessing/encounters/intermediate/acute_inpatient/acute_inpatient__generate_encounter_id.sql) combines patient, facility, dates, and discharge disposition. For example, consecutive billing periods at the same facility can be joined when the earlier claim reports that the patient remains admitted. The algorithm also handles specified overlapping-date patterns. The exact comparisons matter at the boundaries, particularly for same-day events.
 
+A discharge followed by another admission should not be merged merely because the dates are close. Doing so can erase readmissions. Conversely, failing to join an interim bill can create a false readmission and shorten the apparent length of stay.
 
-### Outpatient
+Transfers introduce another choice. A patient moving from Hospital A to Hospital B may have two facility stays within one continuous course of acute care. A facility-level encounter definition should preserve that distinction. A separate transfer-chain analysis can combine the stays when appropriate. It should state how transfer gaps and discharge dispositions are handled rather than changing the meaning of an admission halfway through the analysis.
 
-Most outpatient encounters are formed with the combination of a person_id, data_source, and date, with the exception being radiology, which contains only the claim lines associated with a specific imaging code. This will group together the institutional claim for the imaging event, and the professional claim with the read. This can then be used for rate analysis and compared to other sites of service (including professional locations).
+### Attach professional and supporting services
 
+Once a facility stay is established, the grouper can attach relevant professional claims and lower-priority services. This makes it possible to analyze both the hospital's bill and the clinicians' services associated with the stay.
 
+Matching is an inference. A professional line can fall within a hospitalization's dates without sharing a reliable facility identifier. A strict facility match may lose valid services; a broad date match may attach unrelated ones. Tuva's [acute inpatient professional matching](https://github.com/tuva-health/tuva-core/blob/9cf2d1f77012d0c6e015cd0d4d5e920540702820/models/claims_preprocessing/encounters/intermediate/acute_inpatient/acute_inpatient__prof_claims.sql) uses the patient and encounter date span for eligible lines and resolves competing matches deterministically. That describes the implemented association, not proof that every matched line occurred at the anchor hospital.
 
-| ENCOUNTER_GROUP | ENCOUNTER_TYPE                      | Algorithm Type    | Service Category Anchor     | Anchor Claim Type |
-|-----------------|-------------------------------------|-------------------|-----------------------------|-------------------|
-| outpatient      | ambulatory surgery center           | date continuity   | ambulatory surgery center   | both prof and inst|
-| outpatient      | dialysis                            | patient/date      | dialysis                    | both prof and inst|
-| outpatient      | emergency department                | patient/date/npi continuity| emergency department       | both prof and inst|
-| outpatient      | home health                         | patient/date      | home health                 | both prof and inst|
-| outpatient      | outpatient hospital or clinic       | patient/date      | outpatient hospital or clinic| both prof and inst|
-| outpatient      | outpatient hospice                  | patient/date      | outpatient hospice          | both prof and inst|
-| outpatient      | outpatient injections               | patient/date      | hcpc codes beginning with J | both prof and inst|
-| outpatient      | outpatient psych                    | patient/date      | outpatient psychiatric      | both prof and inst|
-| outpatient      | outpatient pt/ot/st                 | patient/date      | outpatient pt/ot/st         | both prof and inst|
-| outpatient      | outpatient radiology                | patient/date/hcpc | outpatient radiology        | both prof and inst|
-| outpatient      | outpatient rehabilitation           | patient/date      | outpatient rehabilitation   | both prof and inst|
-| outpatient      | outpatient substance use            | patient/date      | outpatient substance use    | both prof and inst|
-| outpatient      | outpatient surgery                  | patient/date      | outpatient surgery          | both prof and inst|
-| outpatient      | urgent care                         | patient/date      | urgent care                 | both prof and inst|
+Keep a distinction between facility spending, professional spending, and the total attributed to the stay. “Cost per admission” is ambiguous unless the reader knows which of these amounts is included.
 
+## Group outpatient and office-based care
 
-### Office-Based
+Outpatient grouping often begins with a patient and service date, but the appropriate additional keys depend on the event.
 
-Office-based encounters use only professional claims as the anchor. Most use the patient/date combination to form an encounter, with the exception being radiology. The reason for this is so that radiology contains only the claim lines associated with a specific imaging code, which can then be used for rate analysis and compared to other sites of service.
+| Family | Examples | Main grouping question |
+|---|---|---|
+| Emergency and urgent care | Emergency department, urgent care | Do the claims describe one visit, a visit spanning midnight, or separate visits? |
+| Procedures | Ambulatory surgery center, outpatient surgery, office surgery | Which facility and professional services belong to the same procedure event? |
+| Recurring treatment | Dialysis, therapy, injections | Are we counting treatment dates, individual services, or billed periods? |
+| Visits | Office, hospital clinic, psychiatric, substance use, telehealth | Which same-day services represent one visit under the chosen definition? |
+| Imaging | Office and outpatient radiology | Which procedure and billing components represent the examination? |
+| Care spanning periods | Home health and hospice | Does the claims-derived record represent a visit day, billing period, or course of care? |
 
+A same-day rule is practical when claims lack timestamps, but it has limits. A patient can visit two different practices on the same day or return to an emergency department after an earlier discharge. Without enough detail to separate them, the grouper may produce a coarser event than the clinical history contains.
 
-| ENCOUNTER_GROUP | ENCOUNTER_TYPE                      | Algorithm Type    | Service Category Anchor         | Anchor Claim Type  |
-|-----------------|-------------------------------------|-------------------|---------------------------------|--------------------|
-| office based    | office visit                        | patient/date      | office-based visit              | professional only  |
-| office based    | office visit injections             | patient/date      | hcpc codes beginning with J     | professional only  |
-| office based    | office visit pt/ot/st               | patient/date      | office-based pt/ot/st           | professional only  |
-| office based    | office visit radiology              | patient/date/hcpc | office-based radiology          | professional only  |
-| office based    | office visit surgery                | patient/date      | office-based surgery            | professional only  |
-| office based    | office visit - other                | patient/date      | remaining office-based claims   | professional only  |
-| office based    | telehealth                          | patient/date      | telehealth visit                | professional only  |
+The opposite problem occurs around midnight. One emergency department visit can generate claims on two calendar dates. Treating every date as a new visit overcounts that care. Continuity rules help, but their assumptions should be visible in the method.
 
+### Imaging needs a more specific unit
 
-### Other
+Suppose a patient receives a CT examination and an MRI on the same day. A patient-date-only rule would combine two different examinations. Tuva's [outpatient radiology anchors](https://github.com/tuva-health/tuva-core/blob/9cf2d1f77012d0c6e015cd0d4d5e920540702820/models/claims_preprocessing/encounters/intermediate/outpatient_radiology/outpatient_radiology__anchor_events.sql) distinguish services by patient, source, start date, and HCPCS code.
 
-Ambulance, DME (durable medical equipment), and lab are typically part of a higher level encounter (such as inpatient or emergency department). If an ambulance claim occured outside the dates of the inpatient encounter it isn't joined and doesn't become associated with the encounter. In this case, an encounter is created for the orphaned ambulance claim. 
+This is useful for associating facility and professional components of the same coded imaging service. It does not guarantee a count of individual examinations. Repeated services with the same code on the same day, different code choices, and modifiers can require additional analysis.
 
-Other orphaned claims are claims that don't produce an anchor event on their own, and weren't attributed to one that does. This bucket is usually small, and if it is large is an indication of a data quality issue.
+Before comparing imaging prices, establish whether an encounter includes the technical component, the professional interpretation, or both. A $100 interpretation and a $600 combined examination are different units of purchase.
 
+## Preserve secondary features
 
-| ENCOUNTER_GROUP | ENCOUNTER_TYPE                      | Algorithm Type    | Service Category Anchor         | Anchor Claim Type  |
-|-----------------|-------------------------------------|-------------------|---------------------------------|--------------------|
-| other           | ambulance - orphaned                | patient/date      | ambulance                       | both prof and inst |
-| other           | dme - orphaned                      | patient/date      | durable medical equipment       | both prof and inst |
-| other           | lab - orphaned                      | patient/date      | lab                             | both prof and inst |
-| other           | orphaned claim                      | no grouping       | n/a                             | both prof and inst |
+An encounter needs a primary type, but that type cannot tell the whole story. An acute inpatient encounter may include emergency department care, observation, laboratory work, or a delivery. Preserve these as additional features instead of expecting one label to describe everything.
+
+Tuva's encounter outputs include indicators for services and characteristics such as emergency department involvement, observation, ambulance, laboratory, equipment, pharmacy, delivery, newborn care, and neonatal intensive care. Consult the [Core encounter model](https://github.com/tuva-health/tuva-core/blob/main/models/core/final/core__encounter.sql) and its dictionary for the fields in the version being used.
+
+An indicator usually means that the relevant evidence was found among the linked claims. It does not establish the exact sequence or duration of that care. An observation indicator on an inpatient encounter, for example, does not mean the patient was simultaneously an inpatient and an outpatient throughout the stay.
+
+This distinction also affects counting. The number of standalone emergency department encounters may differ from the number of all encounters involving emergency department care. Both can be useful metrics if they are labeled clearly.
+
+## Keep unmatched services visible
+
+Some claims do not create an anchor and do not match an existing encounter. An independent laboratory test or equipment rental may be legitimate care without an associated office or hospital claim in the dataset. An ambulance trip may fall outside the date range required for attachment to a hospitalization.
+
+Represent these services explicitly, whether as separate ancillary encounters or as unmatched claim lines. Do not discard them to improve a match rate. A large unmatched share can reveal missing facility claims, invalid dates, or missing identifiers, but it can also reflect the services a particular source covers.
+
+Investigate unmatched dollars as well as unmatched lines. A large number of inexpensive laboratory lines and a handful of expensive unlinked hospital claims have different implications.
+
+## Validate the reconstructed care
+
+A useful encounter output should let us move in both directions: from an encounter to its contributing claim lines, and from a claim line to its assigned encounter or unmatched status. For an exclusive assignment, a line should not contribute its dollars to two encounters.
+
+Reconcile amounts before and after grouping using the same included population. Then examine a small set of event histories that exercise the difficult cases: an interim hospital bill, a readmission, a transfer, an emergency visit crossing midnight, and imaging with separate billing components. These examples reveal errors that aggregate totals can hide.
+
+Also examine length-of-stay distributions, encounters per patient, and changes by source and month. Very long stays may be real, but they can also result from date fallbacks or over-merging. Many short stays may reflect fragmented bills.
+
+Encounter grouping turns billing detail into a usable account of care. Its value comes from choosing a clear unit, preserving the underlying evidence, and understanding where the available claims cannot fully resolve the patient's history.

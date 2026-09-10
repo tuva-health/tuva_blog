@@ -1,175 +1,125 @@
 ---
 id: key-data-elements
 title: "Claims Data Elements"
-description: This section describes the fundamentals of many atomic-level claims data elements.
+description: A practical guide to the identifiers, billing codes, dates, amounts, and provider roles that shape claims analysis.
 ---
 
-Claims data is made up of several data elements that are important to analytics.  Here we describe the key data elements in some detail.
+A claims dictionary can contain hundreds of fields. We do not need to memorize them all to begin an analysis, but we do need to understand the fields that determine who received care, what was billed, where and when it happened, and how the bill was adjudicated.
 
-## Administrative Fields
+In this chapter, we'll work through those fields in that order. For each group, the aim is to connect the field's meaning to an analytic decision. Knowing that a column contains a valid code is useful. Knowing whether that code supports the conclusion we want to draw is much more useful.
 
-One of the great things about claims data (compared to clinical data) is that they contain a number of fields with standard terminology that are (usually) well-populated.  We refer to these fields as administrative or billing codes because they are used for billing (i.e. administrative) purposes as opposed for clinical purposes.  These fields contain valuable information about the services performed, where they were performed, and where the patient came from and went to before/after the service.  
+Column names vary by source. The names below describe common analytic concepts; they do not guarantee that a payer's similarly named column has the same definition or grain.
 
-In this section we review these codes, their analytic use cases, and how you can identify common data quality problems in them.
+## Identifying the patient and the record
 
-### Admit Source
-Admit source code is used in institutional claims to indicate where the patient was located prior to admission.  The field does not exist in professional claims.  The field exists at the header-level, meaning there should be only 1 distinct value for this field per claim.
+The **patient or member identifier** connects claims to the person who received care. A subscriber identifier may instead identify the employee or policyholder whose coverage includes several dependents. Confusing the two can merge the claims of an entire family into one patient.
 
-Admit source, along with admit type, is the least reliable among the administrative codes because the accuracy of the code is not verified during the claims adjudication process (other than verifying that the code is in fact a valid code).
+Establish how identifiers behave across benefit changes, employers, and source systems. A person can receive a new member identifier without becoming a new person. Conversely, matching identifiers in two sources do not establish that they refer to the same individual. Preserve source context and use a documented crosswalk when linking identities.
 
-Despite this, it's possible to use admit source to help identify things like:
-- transfers from another hospital
-- inpatient stays that came through the emergency department
+The **claim identifier**, **version or transaction identifier**, and **line number** distinguish the billing records. As discussed in [Headers and Lines](header-line.qmd), all three may be needed to identify a row. An original-claim reference can connect corrected bills to earlier records. Keep these fields even when the immediate analysis only needs the latest adjudicated state; they are essential for explaining how that state was selected.
 
-Admit source codes are maintained by the National Uniform Billing Committee (NUBC).
+## Describing the setting and the bill
 
-You can find a complete listing of admit source codes and their descriptions [here](https://www.thetuvaproject.com/terminology/admit-source).
+Administrative codes tell us about the circumstances in which services were billed. Several are especially useful when grouping claims into care settings.
 
-### Admit Type
-Admit type code is used in institutional claims to indicate the priority of admission, e.g., urgent, emergent, elective, etc.  The field does not exist in professional claims.  The field exists at the header-level, meaning there should be only 1 distinct value for this field per claim.
+### Institutional billing codes
 
-Admit type along with admit source, is the least reliable among the administrative codes because the accuracy of the code is not verified during the claims adjudication process (other than verifying that the code is in fact a valid code).
+| Field | Meaning |
+| --- | --- |
+| Type of bill | Identifies the facility category, bill classification, and billing frequency or sequence. A leading zero may be included or omitted. |
+| Admission type | Describes the priority of the admission or visit, such as emergency or elective. |
+| Point of origin, often called admission source | Describes the referral source for the admission or visit. |
+| Patient discharge status, often called discharge disposition | Describes the patient's status at the end of the billing period, including discharge destination or continued care. |
 
-Despite this, admit type is commonly used to identify things like elective procedures.
+These fields belong to the institutional claim header. The NUBC maintains the underlying billing specifications; [CMS's institutional claims manual](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/clm104c25.pdf) explains their use in Medicare.
 
-Admit type codes are maintained by the National Uniform Billing Committee (NUBC).
+Treat type of bill as a code, not a number. Store a normalized representation that preserves its components, and keep the original value for traceability. Its meaning depends on the combination of components, so testing digits in isolation can misclassify a bill.
 
-You can find a complete listing of admit type codes and their descriptions [here](https://www.thetuvaproject.com/terminology/admit-type).
+Admission type and point of origin add context, but neither should carry an entire encounter definition by itself. For example, identifying an emergency department visit generally requires evidence from service codes and other claim information. Profile these fields by source and care setting rather than assuming a universal ranking of their reliability.
 
-### Bill Type
-Bill type code is by far the most complex of the administrative codes.  Each digit in the bill type code has a distinct purpose and meaning:
+Discharge status needs similar care. A bill ending on January 31 can describe a patient still receiving inpatient care. Its through date is not automatically the discharge date. Likewise, an indication of death during a stay is useful evidence, but an absence of that indication does not establish that the patient is alive. Claims are not a complete mortality registry.
 
-- 1st digit: This is always "0" and often omitted.
-- 2nd digit: Indicates the type of facility, e.g., skilled nursing facility 
-- 3rd digit: Indicates the type of care, e.g., inpatient part A
-- 4th digit: Indicates the sequence of the bill (also referred to as the frequency code)
+### Place of service
 
-The thing that makes this code complex is that the possible values of the 3rd and 4th digits depend on the value of the 2nd digit.  As a result, some claims datasets will separate out the digits of bill type code into distinct fields.  However, we find it preferable to work with bill type code as a single field and the dictionary below lists all bill type codes this way.
+**Place of service**, or POS, describes the setting reported for a professional service. For example, code `11` identifies an office setting and `20` identifies an urgent care facility. POS `11` alone does not establish that an office evaluation occurred; the billed service also matters. CMS publishes the [place-of-service code set](https://www.cms.gov/medicare/coding-billing/place-of-service-codes/code-sets).
 
-Despite the complexity of this field, it's extremely useful.  Bill type code is used extensively in the creation of service categories, including the identification of acute inpatient, outpatient, skilled nursing, and emergency department services, among many others.  The field is generally considered reliable because the accuracy and suitability of the code is verified during the claims adjudication process, i.e., a claim may be denied if the code doesn't make sense.
+POS can vary across service lines. Preserve that detail when available, and do not silently replace a missing value with a setting inferred from the billing provider's address. A physician's billing office and the location where care occurred can be different places.
 
-Bill type codes are maintained by the National Uniform Billing Committee (NUBC).
+## Describing diagnoses, procedures, and resources
 
-You can find a complete listing of bill type codes and their descriptions [here](https://www.thetuvaproject.com/terminology/bill-type).
+Several code systems describe different aspects of the same care. Diagnoses describe conditions and reasons for an encounter. Procedure and service codes describe activities, while revenue codes classify institutional charges. We need to retain these distinctions when translating codes into analytic categories.
 
-### Discharge Disposition
-Discharge disposition code indicates where the patient was discharged following a stay at a facility.  The field only exists on institutional claims.  The field is sometimes called discharge status or patient status.  The field exists at the header-level, meaning there should be only 1 distinct value for this field per claim.
+### Diagnoses
 
-The code is commonly used to identify things like:
-- Patients that died during an institutional stay
-- Patients who were transferred
-- Patients who were discharged to home or home w/ home health services
-- Patients who left against medical advice (LAMA)
+**ICD-10-CM** codes describe diagnoses and other reasons for healthcare encounters. Keep the code system, diagnosis position or role, and any present-on-admission indicator supplied by the source. For an inpatient stay, the **principal diagnosis** identifies the condition determined after evaluation to be chiefly responsible for the admission. Secondary diagnoses describe additional reportable conditions. **Present-on-admission** describes whether a condition was present when the inpatient admission order occurred; it is separate from diagnosis position.
 
-Discharge disposition codes are maintained by the National Uniform Billing Committee (NUBC).
+Coding conventions also vary by setting. Certain uncertain diagnoses may be coded as established for qualifying inpatient admissions, while outpatient coding follows different rules. The [official ICD-10-CM guidelines](https://stacks.cdc.gov/view/cdc/250974) explain this distinction. We should not read every diagnosis on every claim as an equally strong confirmation of disease.
 
-You can find a complete listing of discharge disposition codes and their descriptions [here](https://www.thetuvaproject.com/terminology/discharge-disposition).
+For an analytic condition definition, decide which claim settings count, which diagnosis positions count, and whether repeated evidence is needed. Those choices belong in the definition, not in an undocumented cleanup step.
 
-### HCPCS
-HCPCS codes indicate the services and supplies rendered by providers to patients.  These codes are used in both institutional and professional claims forms.  These codes exist at the line-level, meaning there can be many HCPCS codes on a single claim.  There are codes for many different types of supplies and services including:
-- physician visits
-- lab tests
-- imaging reads
-- durable medical equipment
-- remote patient monitoring devices
+### Procedures, services, and modifiers
 
-And many many other types of things.  There are thousands of HCPCS codes spread across two levels.  Level 1 codes, also called CPT codes, are maintained by the American Medical Association (AMA).  Level 2 codes are maintained by CMS.
+**HCPCS** includes CPT, maintained by the American Medical Association, and Level II codes, maintained by CMS. These codes identify many billed services, supplies, and products. Modifiers add information that can change the interpretation or payment of a service. [CMS's HCPCS overview](https://www.cms.gov/medicare/coding-billing/healthcare-common-procedure-system) describes the two levels.
 
-Professional contracted rates between payers and providers are established using HCPCS codes.  These rates are referred to as a fee schedule.  Conversely, institutional rates are often paid on a per encounter (e.g. DRG) or per diem basis.
+**ICD-10-PCS** is a separate system used for hospital inpatient procedure coding. It is not another name for HCPCS, and an inpatient procedure code does not necessarily correspond one-to-one with a billed service line. [CMS's code-set overview](https://www.cms.gov/priorities/key-initiatives/burden-reduction/administrative-simplification/hipaa/adopted-standards-operating-rules) distinguishes the systems.
 
-You can find a complete listing of all level 2 HCPCS codes and their descriptions [here](https://www.thetuvaproject.com/terminology/hcpcs-level-2).
+Keep codes as strings, preserve meaningful leading zeros, and validate them against the applicable version. A code that is inactive today may have been valid when the service occurred. Preserve modifiers and units rather than reducing every line to its base procedure code.
 
-### Place of Service
-Place of service codes indicate the type of care setting professional claim services were delivered in.  This field only exists on professional claims.  Place of service is coded at the line-level to reflect the fact that services during a particular encounter can occur in different locations.  Because of this, a single professional claim can have multiple place of service codes.
+### Revenue codes and payment classifications
 
-Place of service codes are used to assign claims to services categories.  For example, place of service code 11 indicates an office visit.
+**Revenue codes** classify institutional charges into categories such as room and board, emergency services, and laboratory services. They can appear alongside HCPCS codes: the revenue code describes the charge category, while HCPCS can provide more specific service detail. Revenue codes are relevant to billing and payment rules, not merely labels for a hospital's accounting departments. [CMS's revenue-code guidance](https://www.cms.gov/Outreach-and-Education/MLN/WBT/MLN7388180-MLN-WBT-1450/1450/lesson05/13/index.html) relates them to payable bill types.
 
-CMS maintains place of service codes.
+Institutional reimbursement is not universally determined by a single DRG or per diem rate. **Diagnosis-related groups (DRGs)** classify inpatient stays for payment. **Ambulatory payment classifications (APCs)** group applicable hospital outpatient items and services; one outpatient encounter can generate more than one APC payment. Medicare uses these and other systems across settings, and some services are packaged into another payment. Even under inpatient prospective payment, outlier adjustments can matter. [CMS's payment-system overview](https://www.cms.gov/outreach-and-education/medicare-learning-network-mln/mlnproducts/html/medicare-payment-systems.html) and [outlier guidance](https://www.cms.gov/medicare/payment/prospective-payment-systems/acute-inpatient-pps/outlier-payments) explain these distinctions.
 
-You can find a complete listing of all place of service codes and their descriptions [here](https://www.thetuvaproject.com/terminology/place-of-service).
+For analytics, this means that an itemized charge is not necessarily a separately paid service. A line with zero payment may still help identify the care delivered.
 
-### Revenue Center Codes
-Revenue center codes are used to account for the services and supplies rendered to patients in institutional care settings.  These codes are only used in institutional claims.  Typically these codes will correspond to a facility's chargemaster, which is a listing of all charges used by the institution in billing.  Although a hospital will use these codes to "charge" the health insurer, they have no bearing on the contracted payment amount, i.e., the amount paid to the provider by the payer.  The payment amount is entirely determined by MS-DRG for inpatient claims and often a per diem rate for skilled nursing.
+## Separating the clocks in claims data
 
-Many different categories of revenue center codes exist including for example:
-- Room and Board
-- Emergency
-- IV Therapy
+A healthcare event, a billing period, a payment, and a data delivery each have their own date. Choose the clock that answers the question.
 
-For a given institutional claim there may be dozens of revenue center codes used.  These codes are submitted at the line-level of the claim, so there is no limit to the number of revenue center codes that may be used on a given claim.
+| Date concept | What it represents | A common analytic use |
+| --- | --- | --- |
+| Claim start and end | The service or statement period represented by the claim, as defined by the source | Identifying the span of a bill |
+| Line start and end | The service period for an individual line | Ordering outpatient services and assigning them to periods |
+| Admission and discharge | The start and end of a stay, where available and applicable | Length of stay and readmission analysis |
+| Received and adjudication dates | When the payer received or processed a record | Studying processing lag |
+| Paid date | The source's payment-related date | Payment-period reporting and claims development |
+| Extract or load date | When the record was delivered or loaded | Reproducing what was available at a cutoff |
 
-Revenue center codes play an important role in identifying different types of insitutional claims, including acute inpatient, emergency department, and others.
+Suppose a patient is admitted January 28 and discharged February 4. A source delivers an interim bill through January 31 and a subsequent bill through February 4. Both may carry the January 28 admission date. Treating each claim start as a new admission would create two stays; treating the interim through date as a discharge would shorten the stay.
 
-Revenue center codes are maintained by the National Uniform Billing Committee (NUBC).
+Line dates are particularly important when a professional claim contains services on several days. Using the header end date for every line can move January services into February or change the sequence of treatment. An extract may derive header dates from line dates, so read its definition before substituting one for another.
 
-You can find a complete listing of revenue center codes and their descriptions [here](https://www.thetuvaproject.com/terminology/revenue-center).
+For pharmacy data, distinguish the recorded dispensing or service date from the transaction-processing date and financial settlement date. An approved billing transaction does not by itself establish pickup or ingestion. Enrollment dates define coverage intervals; confirm whether the end is inclusive and how open intervals are represented.
 
-## Date Fields
+Check date ordering, missingness, implausible values, and distribution changes over time. Apply those checks in context: a future enrollment end date may be a valid open-coverage sentinel, while a future service date in a completed claims extract needs investigation. [Incurred, Paid, and Runout](incurred-paid-runout.qmd) explores how these clocks affect reporting.
 
-Claims data is longitudinal in nature i.e. it captures conditions, services and other healthcare events that occur over time to patients.  This makes claims data extremely useful for analyzing sequences of events e.g. did patients who received drug X have better or worse outcomes?  However the ability to reliably use claims data in this matter is predicated by the completeness and accuracy of a variety of key date fields found in claims data.
+## Understanding the amounts
 
-The date fields listed below are the names we give to these fields in the Tuva Project, but there can be all sorts of different names for these fields in different claims datasets.  For example, in Medicare LDS the claim_end_date field is called clm_thru_dt.
+The three amounts most often confused are **billed**, **allowed**, and **paid**.
 
-### Medical Claims
+**Billed amount** is the submitted charge. It is not the provider's accounting cost or a reliable measure of what anyone ultimately paid. **Allowed amount** is the amount recognized under the payer's coverage and pricing rules for the service. **Paid amount** is the payer payment represented by the record. The allowed amount can include patient cost sharing, so it need not equal the payer payment. [HealthCare.gov's allowed-amount definition](https://www.healthcare.gov/glossary/allowed-amount/) provides the underlying benefit concept.
 
-To understand the key date fields in medical claims, it's useful to consider an example of a patient who's been receiving care in a long-term care (i.e. skilled nursing) facility for 1 year, from January 1st to December 31st, and suppose the facility bills the insurer every month on the beginning of the month.
+Consider a covered service with these illustrative amounts:
 
-- **claim_start_date:** The start date of the billable period for the claim.  In the example above this date would always be the first date of the month.
-- **claim_end_date:** The end date of the billable period for the claim.  In the example above this date would always be the last date of the month.
-- **admission_date:** The date the patient was first admitted to the facility.  In the example above this date would be January 1st.  This field only exists on institutional claims, not professional.
-- **discharge_date:**  The date the patient was discharged from the facility.  In the example above this date would be December 31st.  This field only exists on institutional claims, not professional.
-- **paid_date:**  The date the claim was paid by the insurance company.  This date could be any date after the claim_end_date.  Often this date is within a couple weeks of claim_end_date.
+| Component | Amount |
+| --- | ---: |
+| Billed charge | $200 |
+| Allowed amount | $120 |
+| Deductible assigned to the patient | $40 |
+| Coinsurance assigned to the patient | $16 |
+| Payer payment | $64 |
 
-There are 2 other date fields in medical claims.  They are claim_line_start_date and claim_line_end_date.  These date fields are less important - in fact we don't currently use them in any analytics in the Tuva Project.
+In this simple example, $120 equals $40 + $16 + $64. That equation describes the example, not a universal reconciliation rule. Other-payer payments, different definitions of patient responsibility, and additional adjustments can change the relationship in an actual source. Do not fill a missing allowed amount by adding fields until their definitions support that calculation.
 
-### Pharmacy Claims
+Payer paid amounts answer questions about the payer's claim spending. Allowed amounts can support comparisons that include patient cost sharing. Billed amounts describe charges. None automatically captures pharmacy rebates, capitation, incentive payments, or other financial activity outside the claims file.
 
-- **dispensing_date:** The date when the prescription was filled by the pharmacy and given to the patient.
-- **paid_date:**  The date the claim was paid.  Often this date lags the dispensing_date by days or weeks.
+Finally, determine whether each amount is a header total, a line amount, a signed transaction, or a replacement value. An accurate amount at the wrong grain still produces an inaccurate total.
 
-### Eligibility
+## Keeping provider roles separate
 
-- **enrollment_start_date:** The date when a patient became enrolled in a health plan (i.e. insurance).  Patients can gain and lose enrollment over time, so a given patient may have more than one enrollment_start_date.
-- **enrollment_end_date:** The date when a patient loses enrollment in a health plan (i.e. insurance).  Patients can gain and lose enrollment over time, so a given patient may have more than one enrollment_end_date.  Patients who are currently enrolled will not have an enrollment_end_date, or they may have a long-dated enrollment_end_date e.g. 12/31/9999, which is meant to indicate they are still enrolled.
-- **birth_date:**  The date the patient was born.  
-- **death_date:**  The date the patient died (if applicable).  Just because a patient does not have a death date does not mean they aren't deceased!  Many deaths do not occur in a healthcare facility and therefore are not captured in claims.  Sometimes the death date is captured in eligibility data, but often it is inferred by discharge_disposition_code = 20 (this field is found in institutional claims). 
+A **billing provider** is the individual or organization billing for the service. A **rendering provider** is identified as delivering the service. An **attending provider** has overall responsibility for the care reported on an institutional claim or encounter; the role is not limited to inpatient stays. A **referring or ordering provider** initiates a referral or order. These roles are not interchangeable when comparing practices, attributing patients, or studying referral patterns. CMS's [professional](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/clm104c26.pdf) and [institutional billing instructions](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/clm104c25.pdf) describe the associated fields.
 
-### Data Quality Issues with Claims Date Fields
+The National Provider Identifier, or **NPI**, can identify an individual or an organization. It does not encode specialty or location; those characteristics require additional data. [CMS's NPI guidance](https://www.cms.gov/priorities/key-initiatives/burden-reduction/administrative-simplification/unique-identifiers/npis) explains the identifier's scope.
 
-As you might expect, the date fields in claims often suffer from data quality issues.  For example, date fields can be missing, or the dates can exist unnaturally far into the past or into the future.
-
-Identifying these sorts of problems across all the key date fields can be challenging and require a lot of ad hoc querying.  We've figured out a good way to look for these sorts of data quality problems and built it into the Tuva Project.  Check out the code and video below for more info.
-
-```sql
-select *
-from insights.count_claim_by_date_column
-order by 1
-```
-
-<iframe width="640" height="400" src="https://www.youtube.com/embed/QE9N5FqeNd4?si=iRPvidLj43JwY7ag" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-
-## Financial Fields
-
-## Provider Fields
-
-Medical claims includes several fields containing information on providers. The fields vary based on the type of claim.
-
-**Institutional Claims [CMS-1450 or UB-04](https://www.cdc.gov/wtc/pdfs/policies/ub-40-P.pdf):**
-Provider information in the header of facility claims. In addition to the facility billing the service, these claims contain several fields for NPIs from up to four individual providers involved in the care (e.g., Attending Physician).
-- Box 1 Billing Provider Name and Address
-- 2 Pay-to Proivder Name and Address
-- 5  Federal Tax ID
-- 76 Attending Physician
-- 56 Billing Provider NPI
-- 57 Other Provider ID
-- 77 Operating Physician
-- 78 Other Physician
-- 79 Other Physician
-
-**Professional Claims [CMS-1500](https://www.cms.gov/medicare/cms-forms/cms-forms/downloads/cms1500.pdf):** 
-Professional claims track the NPI of the provider who rendered each individual line item (i.e., CPT/HCPSCS code) in the claim. In addition, the claim header contains information on the organization submitting the claim. 
-- Box 17  Referring Provider
-- 24J Rendering Provider
-- 25 Federal Tax ID
-- 32 Service Facility Location Information
-- 33 Billing Provider
+Preserve the source's provider roles and distinguish a reported value from one filled through a fallback. Substituting billing NPI for missing rendering NPI may make a column look complete while changing the question the analysis answers. Across all these fields, our task is the same: carry the source's meaning into the analytic model, and make every transformation of that meaning visible.

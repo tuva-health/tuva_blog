@@ -1,77 +1,81 @@
 ---
 id: intro-to-claims
-title: "Intro to Claims"
-description: This section describes how claims data is generated, including the entities and processes involved.
+title: "Introduction to Claims"
+description: How healthcare billing becomes an analytic dataset, and what that process lets us see about patients, services, and spending.
 ---
-Healthcare claims data is the oldest and most widely analyzed type of healthcare data.  In this section we provide an overview of the healthcare entities and overall process involved in the creation of claims data.
 
-## Healthcare Entities
-Healthcare claims are created by healthcare providers for the purpose of billing health insurance companies for the services and supplies they have rendered to patients.  The following types of entities play an important role in the claims data generation process:
+A claim begins with a practical question: who should pay for a healthcare service, and how much should they pay? The answer produces a record of the patient, the provider, the services billed, and the payer's decision. Put these records together over time and we can study how people use healthcare and what it costs.
 
-- **Providers:** Includes organizations and people that render healthcare services or supplies to patients, including:
+But the billing process leaves its fingerprints on every analysis. One hospital stay can produce many claims. One claim can appear in several versions. A service can have an allowed amount even when the insurer pays nothing. Understanding these details is the starting point for working with claims data.
 
-    - Individual Providers: Physicians, physician assistants, licensed therapists and social workers, etc.
-    - Healthcare Organizations: Health systems, hospitals, skilled nursing facilities, home health organizations, hospice organizations, ambulatory surgery centers, etc.
-    - Pharmacies: Retail pharmacies e.g. Walgreens, CVS, etc.
-    - Lab Testing Companies: e.g. Labcorp, Quest Diagnostics, etc.
-    - Durable Medical Equipment Companies: Companies that sell durable medical equipment to provider organizations or directly to patients.
+In this chapter, we'll follow a claim from the delivery of care to the files an analytics team receives. Along the way, we'll separate the healthcare event from the administrative records it creates. That distinction will come up throughout this book.
 
-- **Clearing Houses:** These organizations sit between providers and health insurers.  They collect claims from providers in a standard format, perform basic checks and verifications of each claim, and then route the claims that pass these basic checks to the appropriate health insurer for further processing and adjudication.
+## The organizations behind the data
 
-- **Health Insurers:** These are the organizations patients have their medical and or pharmacy coverage through.  These organziations have contracts with providers to pay them for services and supplies at specific prices.
+Several organizations may participate in a single claim. Knowing their roles helps explain whose information we have, whose information we don't have, and why two datasets about the same patient can look different.
 
-- **Revenue Cycle Management (RCM) Companies:** Help providers manage their entire billing process, including the coding of claims and the collection of payments from providers and patients.
+**Providers** deliver services and supplies. They include people, such as physicians and physical therapists, and organizations, such as hospitals, laboratories, pharmacies, and durable medical equipment suppliers. The organization submitting the bill is not necessarily the person who delivered the service. A physician group may bill for the work of an individual physician; a hospital may bill separately for the facility resources used during that physician's care.
 
-## The Claims Creation Process
+**Health plans and claims administrators** receive claims and apply coverage and payment rules. Sometimes an insurance company both administers the benefit and bears the financial risk. In a self-funded employer plan, an employer may bear that risk while an insurer or third-party administrator processes claims. Throughout this book, we use *payer* for the organization adjudicating a claim, while recognizing that it may not be the organization ultimately funding the payment.
 
-1. **Healthcare Service:** A provider renders healthcare service or supply to a patient.  For example, a patient has a visit with their primary care physician.
+**Clearinghouses** help route electronic transactions between providers and payers. They can check whether a submission meets technical requirements before sending it onward. A provider may also submit directly to a payer. A clearinghouse's acceptance tells us that a submission passed that stage of processing; it does not tell us whether the payer will cover the service. [CMS's EDI overview](https://www.cms.gov/medicare/coding-billing/electronic-billing) describes these exchange relationships.
 
-2. **Claim Created:** The provider (or revenue cycle company working on their behalf) creates a claim and submits it to the appropriate clearing house.  This is almost always done electronically using either an 837I or 837P EDI transaction.
+**Revenue cycle management companies** help providers code services, submit bills, work denials, and collect payments from payers and patients. **Pharmacy benefit managers**, or PBMs, administer pharmacy benefits for many plans. Their systems may be the source of a pharmacy file even when the medical file comes from the health plan.
 
-3. **Clearing House:** The clearing house performs basic checks of each claims.  For example, they make sure all the required fields are populated.  The clearing house then transmits the claim to the appropriate health insurer.
+The patient's perspective matters too. The patient receives care and may owe a deductible, copayment, or coinsurance. A payer's claims file usually describes the amount assigned to the patient, not whether the provider actually collected it.
 
-4. **Health Insurer:** The health insurer receives the claim from the clearing house and adjudicates the claim.  Claims adjudication is a process where the insurer determines whether or not to pay the claim and the amount to be paid, if warranted.  For example, the insurer will check:
-    1. Whether the patient had insurance coverage during the date of service on the claim
-    2. Whether the patient's insurance covers the particular services or supplies they received
-    3. Whether the patient meets certain prior authorization requirements (e.g. this is common for surgical procedures)
+## From care to an adjudicated claim
 
-5. **Payment Decision:** Once the claim is fully adjudicated (i.e. a decision about whether to pay the claim has been reached), the health insurer will issue a remittance to the provider.  This remittance is another electronic transaction called an 835 or Electronic Remittance Advice (ERA) transaction.  This transaction includes information about whether the claim was paid or denied and is sent back to the provider.  
+Consider a patient who visits a physician for knee pain. The clinician documents the visit, orders an X-ray, and discusses treatment. Those clinical activities and the subsequent billing activities are related, but they are not the same record.
 
-6. **Corrections:** If the claim was denied the provider will work to correct the error on the claim which led to the denial, if possible, and re-submit the claim to the health insurer. 
+### The provider submits a bill
 
-7. **Adjustments and Reverals:** Occassionally a claim is submitted and paid in error - these claims are eventually adjusted and reversed.  See the section on adjustments and reversals for more information about this process.
+The provider translates the documented services into billing codes and submits a claim. A professional medical claim typically uses an electronic 837P transaction; a hospital facility claim typically uses an 837I. These are standardized exchange formats, not warehouse table schemas. Retail pharmacy submissions use a separate family of NCPDP standards. [CMS's adopted transaction standards](https://www.cms.gov/priorities/key-initiatives/burden-reduction/administrative-simplification/hipaa/adopted-standards-operating-rules) distinguish these transactions.
 
-8. **Data Warehousing:** Ultimately the health insurer will aggregate all claims (final claims, adjustments, denials, and reversals) in a database.  This claims dataset typically includes eligibility information, medical claims, and pharmacy claims.  When we discuss analyzing claims, this is the dataset we are referring to.  Health insurers often make this claims data available to provider partners (e.g. accountable care organizations) and pharmaceutical companies frequently purchase de-identified copies of this data for drug safety, efficacy, and commercialization research.
+A submission may be rejected because it cannot be processed, for example because required information is missing. This is different from an adjudicated denial: the payer has not necessarily reached a coverage or payment decision. Some analytic extracts include these early submissions; others begin only after adjudication.
 
-## Claims Forms
+### The payer adjudicates the claim
 
-A healthcare claim is created when a healthcare provider populates a claim form for services or supplies they’ve rendered to a patient.  These days almost all claims are created and submitted electronically.  Often this is automated or partially automated by the electronic medical record (EMR) system.
+*Adjudication* is the process of applying the payer's rules to the submitted bill. The payer considers questions such as whether the patient was enrolled on the service date, whether the benefit covers the service, whether authorization requirements were met, and which contract or payment methodology applies. Other insurance and patient cost sharing can affect the result.
 
-There are 3 main types of claim forms.  The type of form used depends on the type of healthcare entity submitting the claim.
+The result can differ across lines on the same claim. One service may be payable, another may be included in payment for a related service, and another may be denied. A single claim-level label may conceal these differences.
 
-**CMS-1500**
-- Also Known As: Professional claim
-- Electronic Version: 837P
-- Maintained By: National Uniform Claim Committee (NUCC)
-- Example Form: [https://nucc.org/images/stories/PDF/1500_claim_form_2012_02.pdf](https://nucc.org/images/stories/PDF/1500_claim_form_2012_02.pdf)
-- Used By: Physicians, lab test companies, durable medical equipment companies, etc.
+### The payer explains its decision and settles payment
 
-**CMS-1450**
-- Also Known As: UB-04, institutional, or facility claim
-- Electronic Version: 837I
-- Maintained By: National Uniform Billing Committee (NUBC)
-- Example Form: [https://www.amerihealth.com/pdfs/providers/npi/ub04_form.pdf](https://www.amerihealth.com/pdfs/providers/npi/ub04_form.pdf)
-- Used By: Facilities (e.g. hospitals, SNFs, ambulatory surgery centers), home health agencies, hospice organizations, etc.
+An electronic remittance advice, commonly an 835 transaction, explains adjudication and financial adjustments. It is distinct from the original claim submission. One remittance can cover multiple claims, and the funds transfer can also include adjustments that do not belong to a specific claim. [CMS's remittance guidance](https://www.cms.gov/medicare/coding-billing/electronic-billing/health-care-payment-remittance-advice) explains these levels of reporting.
 
-**NCPDP Universal Claim Form**
-- Also Known As: N/A
-- Electronic Version: 
-- Maintained By: the National Council for Prescription Drug Programs
-- Example Form:
-- Used By: Retail pharmacies (e.g. Walgreens, CVS, Wal-Mart) to bill health insurers.
-In this section we’ll cover the key data elements present in claims data.
+For the knee visit, suppose the provider bills $200, the payer allows $120, and the full $120 is assigned to the patient's deductible. The payer's payment is $0. The service was still processed as covered; the zero payment does not establish a denial. We will return to these relationships in [Claims Data Elements](key-data-elements.qmd).
 
-Each claim form has two sections: a header section and a line section.  Each data element is either entered on the header section or line section.  Every data element in the header section may only be entered a specific number of times (typically one time, but not always).  On the other hand, data elements in the line section may be entered an unlimited number of times.
+### The record can change
 
-## References
-- [UHC EDI Resource Library](https://www.uhcprovider.com/en/resource-library/edi/edi-835.html)
+The provider may correct a bill. The payer may recover an overpayment or reconsider a decision. A pharmacy may reverse a transaction for a prescription that was not picked up. The resulting records describe changes in billing and adjudication, not necessarily additional care.
+
+An extract might contain every transaction, the latest version of each claim, or a mixture. This is why we need to understand [adjustments, denials, and reversals](adjustments-denials-reversals.qmd) before counting services or adding payments.
+
+## Three billing structures to recognize
+
+The paper forms remain useful teaching tools because they make the structure of medical claims visible. Electronic transactions carry the corresponding concepts, often with additional detail and different repetition limits.
+
+| Billing structure | Common use | What it emphasizes |
+| --- | --- | --- |
+| Professional: CMS-1500 and 837P | Clinician services and many supplier services | Procedure or service codes, dates, units, rendering providers, and place of service |
+| Institutional: CMS-1450, also called UB-04, and 837I | Hospital and other institutional services | Type of bill, facility charges, revenue codes, and information about an admission or billing period |
+| Retail pharmacy: NCPDP transactions | Prescriptions billed through a pharmacy benefit | The dispensed product, quantity, days supply, pharmacy, and transaction outcome |
+
+These are billing categories, not a complete taxonomy of organizations or care settings. The same organization may submit different kinds of claims. Drugs administered in a physician's office, for example, may appear on medical claims rather than in the retail pharmacy file. Consult the [NUCC professional form instructions](https://www.nucc.org/index.php/1500-claim-form-mainmenu-35/1500-instructions-mainmenu-42) and [CMS institutional form guidance](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/clm104c25.pdf) to understand the underlying layouts.
+
+## What arrives in the warehouse
+
+An analytics team usually receives files derived from a payer's operational systems rather than untouched 837 and 835 transactions. The payer or data vendor has already made choices: which records to include, how to represent adjustments, where to put diagnoses, and how to combine submitted and adjudicated amounts.
+
+Those choices matter as much as the column names. A field called `paid_amount` might hold a payment transaction or the current total for a claim. A row might represent a claim line, an entire claim, or a version of either. Two files with identical schemas can require different analytic treatment.
+
+Start by establishing the population, benefits, time period, record grain, and processing history represented in the delivery. Obtain the source dictionary and worked examples of corrected claims. Keep the source identifiers and extract dates so that a result can be traced back to the delivered records.
+
+## What claims can tell us
+
+Claims are especially useful when we need to follow covered care across many providers. They support analyses of spending, utilization, diagnoses, procedures, and treatment patterns. Enrollment data supplies the population and coverage periods needed to interpret those observations.
+
+Their limits follow from the same billing process. Claims generally do not explain the clinician's full reasoning, establish whether a patient took a dispensed medication, or capture every service received outside the covered benefit. A diagnosis records information used in billing; it does not independently confirm every clinical detail. An absence of claims may mean no care, missing coverage, or missing data.
+
+Good claims analysis makes these boundaries explicit. Before asking what the data says about healthcare, we first ask what the records represent. [Headers and Lines](header-line.qmd) takes that question down to the level where most analytic mistakes begin.

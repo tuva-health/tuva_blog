@@ -1,0 +1,13 @@
+# Part 3: Analytics {.unnumbered}
+
+::: {.part-intro}
+A useful metric starts with a clear question and a definition that matches it.
+:::
+
+In this part, we'll use the concepts from the earlier chapters to analyze healthcare spending, utilization, and outcomes. We'll work through familiar measures and examine the decisions hidden inside their names.
+
+Suppose emergency department spending has increased. That observation might reflect more enrolled people, more visits per person, higher payment per visit, a change in the kinds of visits, or a difference in how much claims runout is available. A single total cannot distinguish those explanations. We need a population denominator, a visit definition, a consistent cost basis, and comparable periods.
+
+The [PMPM chapter](../analytics/basic-pmpm.qmd) establishes that approach to cost. [Emergency department analytics](../analytics/ed-visits.qmd) connects utilization, population rates, and cost per event. [Readmissions](../analytics/hospital-readmissions.qmd) shows how eligibility and follow-up rules define an outcome. [Quality measures](../analytics/quality-measures.qmd) makes the relationship between clinical intent and technical specification explicit. Finally, [risk adjustment](../analytics/risk-adjustment.qmd) examines how differences in measured health status affect comparisons.
+
+The calculations themselves are often short. Most of the work is deciding which records belong in them and what conclusions the result can support. We will make those decisions visible, use small examples to check the arithmetic, and separate descriptive findings from explanations that require additional evidence.

@@ -1,94 +1,100 @@
 ---
 id: quality-measures
 title: "Quality Measures"
+description: "Translate a clinical question into a reproducible measure, with explicit populations, timing, evidence, and data limitations."
 ---
 
-Quality measures help us measure or quantify healthcare processes, outcomes, 
-patient perceptions, organizational structure, and systems. These measures are 
-related to one or more quality goals for health care (e.g., effective, safe, 
-efficient, patient-centered, equitable, and timely care). CMS uses quality 
-measures in its quality improvement, public reporting, and pay-for-reporting 
-programs for specific healthcare providers.
+A quality measure turns an idea about good care into a calculation. That sounds simple until we have to decide exactly who belongs in the measure, what evidence counts, and when an absence of evidence should count against performance.
 
-However, value-based care has become synonymous with long lists of quality 
-measures that healthcare providers must track and many overlapping programs and 
-measure definitions. CMS has launched new “simplified” reporting programs to 
-help address these administrative burdens, such as the 
-[Alternative Payment Model Performance Pathway (APP)](https://mdinteractive.com/mips-blog/acos-transitioning-ecqm-and-mips-cqm-reporting-start-early-better-results) 
-and [ACO REACH](https://www.cms.gov/priorities/innovation/innovation-models/aco-reach).
+In this chapter, we'll work through those decisions. Our focus is the analytic structure of a measure: how to read a specification, translate it into patient- or event-level results, and understand what claims can tell us.
 
-Quality measures are typically developed based on research and clinical practice 
-evidence. Measures are developed by:
+## Begin with the clinical intent
 
-- Public agencies (e.g., CMS and the Agency for Healthcare Research and Quality)
-- Private nonprofits (e.g., the National Committee for Quality Assurance)
-- Professional medical associations
-- Private groups
+Measures can describe different aspects of care. A process measure asks whether an action occurred. An outcome measure asks what happened to the patient. A structural measure describes a feature of the organization or care setting. Patient experience measures capture information that claims alone generally cannot provide.
 
-## Components of a Quality Measure
+The distinction matters because the data must support the intended question. A paid claim for a laboratory test may show that a billed service occurred. It generally does not contain the test result. Using the claim to measure completion and using it to measure disease control are different tasks.
 
-Quality measures have many standard sections:
+CMS describes a measure's specification as the instructions for building and calculating it. Those instructions connect the intended clinical question to the population, data elements, timing, and implementation. The goal is consistent interpretation across implementations. See the [CMS overview of measure specification](https://mmshub.cms.gov/measure-lifecycle/measure-specification/overview).
 
-- **Measure ID:** Measures can have several different identifiers. These are 
-  created by the measure steward (i.e., the organization that authored and 
-  maintains the measure). For example, the identifiers for Breast Cancer 
-  Screening are NQF 2372, MIPS CQM Quality ID #112, and eCQM CMS125.
-- **Measure Description:** A brief description of the purpose of the measure.
-- **Denominator:** The population to which the measure applies (i.e., the number 
-  of people who should have received a service or action such as a screening). 
-  The denominator is the lower part of a fraction used to calculate a rate.
-- **Numerator:** The portion of the denominator population that received the 
-  service or action for which the measure is quantifying. The numerator is the 
-  upper part of a fraction used to calculate a rate.
-- **Exclusions/Exceptions:** An exclusion is a reason that removes a patient 
-  from both the numerator and denominator because the measure would not 
-  appropriately apply to them. Exceptions are due to medical reasons (e.g., 
-  patient is comatose), patient reasons (e.g., patient refuses), and system 
-  reasons (e.g., shortage of a vaccine).
-- **Measure Period:** The timeframe in which the service or action should have 
-  occurred.
-- **Value Sets:** The healthcare codes used to define the clinical concepts used 
-  in the measure. These codes are from standard systems such as ICD-10, CPT, 
-  LOINC, RxNorm, SNOMED, etc.
+## Read the specification as a complete definition
 
-## Methodology
+The name of a measure is not enough to implement it. Similar names can refer to different populations, data sources, and measurement years. Before writing code, identify the measure steward, program, version, and calculation type.
 
-Below is a simplified flow chart for calculating a quality measure.
+For a typical proportion measure, the key components are:
 
-![Quality Measure Methodology](/img/quality_measures/quality_measure_methodology.jpg)
+| Component | What it establishes | A question to resolve |
+|---|---|---|
+| Initial population | The people or events considered for evaluation | Are we evaluating patients, discharges, visits, or episodes? |
+| Denominator | Which of those units are eligible for the calculation | What age, diagnosis, enrollment, or event criteria apply? |
+| Denominator exclusions | Cases removed under the specification | Does the exclusion require positive evidence? |
+| Numerator | The eligible units with the specified action or outcome | What evidence and timing satisfy the criterion? |
+| Exceptions, if defined | Special treatment of specified circumstances | At what stage and under which rules do they apply? |
+| Measurement and lookback periods | When eligibility and evidence are assessed | Is the event date inside the period, or does a window extend beyond it? |
+| Value sets and code versions | The coded concepts used by the logic | Which version is valid for this measurement year? |
 
-Below is an example of the concepts and logic in the Breast Cancer Screening 
-quality measure using the Medicare LDS 5% data set.
+Not every measure is a proportion. Ratios, continuous-variable measures, and composite scores have different calculation rules. Even among proportion measures, an exception is not a generic synonym for an exclusion. Follow the specified handling rather than treating all special cases as records to drop. The [CMS Measure Calculations guide](https://mmshub.cms.gov/sites/default/files/Measure-Calculations.pdf) explains these distinctions.
 
-![Breast Cancer Screening Sankey Diagram](/img/quality_measures/breast_cancer_screening_sankey_diagram.png)
+## Work from individual results to the rate
 
-## Data Quality Issues
+Consider a deliberately simple, fictional operational measure: the proportion of eligible discharges with a documented follow-up contact on days 1 through 7 after discharge, with discharge day defined as day 0. This is an example for learning the calculation, not a clinical recommendation or a reporting specification.
 
-Many organizations that have the technical staff needed to build the logic for 
-a quality measure may still run into data quality issues. Some common data 
-quality issues are listed below.
+Suppose we begin with 100 discharges. Ten meet a predefined exclusion, leaving 90 eligible discharges. Assume all 90 have complete observation through day 7, remain eligible for follow-up throughout that window, and have a complete contact-data feed at the extraction cutoff. Of those, 63 have qualifying contact evidence.
 
-- Aggregating and deduplicating data sources.
-- Matching patients across these various data sources.
-- Missing data or not having enough data:
-    - Missing key data points required for the measure, such as date or birth or
-      gender.
-    - Missing types of data, such as labs or medications.
-    - Some measures may go back several years for screening data, such as 
-      Colorectal Cancer Screening).
-    - Some measures may require other data sources, such as labs or survey data, 
-      that are not easy to obtain or work with.
-    - Merging claims into encounters to accurately look for institutional stays 
-      or residing in a long-term care facility for more than 90 days during the 
-      performance period.
-- Normalizing healthcare codes to the value set required by the measure.
-- Mapping custom data from an EMR, such as observations and report or document 
-  tags, to a proper code from the measure value set.
+$$
+\text{Observed completion rate} = \frac{63}{90} = 70\%
+$$
 
-## Introduction Video
+The useful implementation output is more than the value 70%. It includes one row per discharge, the reason the discharge is eligible or excluded, the contact evidence, and the resulting numerator flag.
 
-In this video, we walk through the high-level concepts of the Breast Cancer 
-Screening quality measure and common data quality issues that may come up when 
-calculating a measure.
+| Discharge | Eligible after exclusions | Recorded contact | Contribution to denominator | Contribution to numerator |
+|---|---:|---|---:|---:|
+| A | Yes | Day 3 | 1 | 1 |
+| B | Yes | None recorded | 1 | 0 |
+| C | No | Day 2 | 0 | 0 |
+| D | Yes | Day 9 | 1 | 0 |
 
-<iframe width="640" height="400" src="https://www.youtube.com/embed/pjAqmlx7HIs" title="Quality Measures Intro" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+A contact on day 9 does not satisfy this example's seven-day window. A qualifying contact for an excluded discharge does not add to its numerator. For this proportion, every numerator event must also belong to the denominator.
+
+Notice that claims alone may not establish whether a telephone contact happened. If the required evidence lives in a care-management system that we do not have, we cannot claim to have implemented this measure from claims. Replacing “documented contact” with “billed visit” would create a different measure.
+
+## Make the time rules precise
+
+Many disagreements arise at date boundaries. Does the discharge day count as day zero or day one? Are both endpoints included? Is age calculated at the beginning of the year, the end, or an event date? Does a service from a previous year count toward the numerator?
+
+Translate these rules into explicit intervals and work through examples at the boundaries. A test with an event well inside a window does not verify the first or last eligible day.
+
+Coverage rules need the same care. A person observed for two months does not necessarily have the same opportunity to satisfy a year-long measure as someone observed for twelve. Some specifications require continuous enrollment, allow defined gaps, or use different benefit requirements for different periods. Those rules must come from the selected measure version.
+
+Keep the measurement period separate from the extraction date. A claim received in April may provide evidence for a service performed in February. Recalculating a measure with more runout can change the numerator even when no one received additional care in the measurement period.
+
+## Separate missing evidence from an ineligible population
+
+There are at least three reasons a person might not appear in a numerator:
+
+1. The relevant care did not occur.
+2. The care occurred, but the available data did not capture it.
+3. The evidence was present, but the transformation failed to recognize it.
+
+Those explanations lead to different actions. A missing service in a complete data source might prompt a care-gap investigation. A missing data feed prompts a data-collection problem. A code-mapping error prompts an implementation fix.
+
+Do not hide the latter two by removing affected people from the denominator unless the specification explicitly calls for that treatment. Report the data limitation alongside the measure. When possible, preserve separate fields for population eligibility, observed numerator evidence, and whether the required data are available.
+
+This is especially important when joining claims and clinical records. Person matching, diagnosis mappings, laboratory units, and encounter grouping can all change who qualifies. A richer dataset can improve ascertainment, but adding data inconsistently across providers can also make their rates less comparable.
+
+## Build an explanation into the output
+
+For each person or event evaluated, retain the evidence needed to explain the result. Useful fields include the qualifying event identifier, relevant dates, matching value-set entry, exclusion reason, and measure version. They turn a disputed percentage into a record that a clinical or analytic reviewer can follow.
+
+A practical review starts with a small set of known cases. Include someone who qualifies, someone who does not, someone with an exclusion, and cases at the date and age boundaries. Then reconcile the population through each stage of the calculation. If the numerator changes after an update, determine whether the change came from new data, new logic, a code-set revision, or a population change.
+
+When a measure is calculated at the event level, preserve that grain. A person with three eligible discharges may contribute three denominator events. Deduplicating to one person because it “looks cleaner” changes the measure.
+
+## Interpret performance in context
+
+A measured rate is a summary of the selected definition and available evidence. It is not a complete description of care quality. Small denominators can produce large movements from a single event, and differences in population or data capture can affect comparisons.
+
+Show the numerator and denominator with the percentage. Identify the period, version, source coverage, and whether risk adjustment or stratification was applied. For trend analysis, distinguish a change in performance from a change in the population, specification, or evidence available to the calculation.
+
+The [readmissions chapter](hospital-readmissions.qmd) provides a worked example of these issues for an outcome measure. The [risk adjustment chapter](risk-adjustment.qmd) explores why accounting for health status is a separate step from calculating a crude rate.
+
+A good measure implementation gives us both a number and an explanation: who it describes, what it counts, and which evidence supports each result.

@@ -3,75 +3,107 @@ id: code-sets
 title: "Code Sets"
 ---
 
-Healthcare code sets are the standard terminologies that form the foundation of healthcare data.  These codes classify all the important things that happens in healthcare: conditions, procedures, services, care settings, drugs, etc.  Without a deep understanding of these code sets you can't effectively analyze healthcare data.
+Claims describe healthcare through codes. A diagnosis code helps explain why a patient received care. A procedure code describes a service or procedure. A National Drug Code identifies a drug product and package. Other codes describe where care occurred, how a claim was billed, or how payment was determined.
 
-These code sets are scattered all over the internet, maintained by different organizations, and updated on different frequencies.  The Tuva Project organizes and maintains these code sets so you don't have to.  When you run Tuva all ~50 code sets, along with other reference datasets and value sets, are loaded directly to your data warehouse.  
+To analyze claims well, you need to know which question each code set answers. A field named `procedure_code` is not enough: an inpatient procedure code and a professional service code come from different systems and cannot be interpreted with the same lookup table.
 
-Below we describe these code sets in detail.
+In this chapter, we'll cover the code sets you will encounter most often, how to use them together, and the normalization choices that can change an analysis. The goal is to understand the language of the data well enough to ask precise questions.
 
-## HCPCS
+## A map of the major code sets
 
-HCPCS stands for Healthcare Common Procedure Coding System (commonly pronounced "hick-picks").  It's used on both professional and institutional claims, however, it's used as the primary fee schedule for professional claims, so it's especially important for that claim type.
+| Code set | Main analytical question | Common claims context |
+|:--|:--|:--|
+| ICD-10-CM | What diagnoses or reasons for care were reported? | Professional and institutional claims |
+| ICD-10-PCS | What procedures were reported for the inpatient stay? | Hospital inpatient institutional claims |
+| CPT, also called HCPCS Level I | What professional or outpatient services were reported? | Professional and many outpatient institutional claim lines |
+| HCPCS Level II | What additional services, supplies, equipment, or drugs were reported? | Professional and institutional claim lines |
+| National Drug Code, or NDC | Which drug product and package was identified? | Pharmacy claims and some medical drug billing |
+| Revenue codes | Which institutional service or accommodation category was billed? | Institutional claim lines |
+| Place of service | In what type of setting was the professional service performed? | Professional claim lines |
+| Diagnosis-related groups, or DRGs | How was an inpatient stay classified by a particular grouper? | Inpatient payment and case-mix analysis |
 
-There are two levels of HCPCS codes.  Level 1 is commonly referred to as CPT, or Current Procedure Terminology, and is maintained by the AMA, or American Medical Association.  Level 1 is used to represent services and procedures performed by physicians or other healthcare professionals.  For example, when you see your doctor in their office or in the emergency department, this is coded using a Level 1 code.  All CPT codes are 5-digit numeric.
+These code sets overlap in the care they describe, but their roles differ. An inpatient operation can produce a hospital claim with ICD-10-PCS codes and a separate professional claim with CPT codes. Seeing both does not mean two operations occurred. [CMS's adopted code-set overview](https://www.cms.gov/priorities/key-initiatives/burden-reduction/administrative-simplification/hipaa/adopted-standards-operating-rules) is a useful reference for the major diagnosis and procedure systems.
 
-Level 2 is simply known as HCPCS Level 2 and is maintained by CMS.  Level 2 codes represent services not represented by Level 1, including durable medical equipment and ambulance services.  Level 2 codes are 4-digit numeric.
+## Diagnoses: ICD-10-CM
 
-The Level 2 codes are included in the Tuva Project Terminology code sets.  However, Level 1 is not publicly available and requires a license from the AMA to access.
+**ICD-10-CM** is the U.S. clinical modification of the International Classification of Diseases, Tenth Revision. It classifies diagnoses and other reasons for healthcare encounters. Codes can capture more than a disease name, including laterality, complications, or encounter context.
 
-There are approximately 10,000 Level 1 and 8,000 Level 2 codes.  The Level 2 codes are available in the `terminology.hcpcs_level_2` table.
+A code on a claim is evidence of what was reported for that encounter. It is not a complete clinical history. A patient can have a condition that is absent from a particular claim, and a reported code may describe a symptom, screening encounter, personal history, or other circumstance rather than an active disease.
 
-**References**
+Coding rules also differ by setting. For example, the treatment of uncertain diagnoses in specified inpatient settings differs from outpatient coding. Use the [official ICD-10-CM guidelines](https://www.cdc.gov/nchs/icd/icd-10-cm/index.html) when those distinctions affect a cohort. A code lookup supplies a label; it does not supply all the rules for interpreting that label.
 
-- [CMS HCPCS Level 2](https://www.cms.gov/medicare/coding-billing/healthcare-common-procedure-system)
+Preserve diagnosis position and related context when available. A principal diagnosis on an inpatient claim and an additional diagnosis do not have the same role. Nor should every diagnosis field be treated as an independent occurrence of disease. Several lines may repeat the same claim-level diagnoses.
 
-## NDC
+For condition identification, use an explicit definition that specifies codes, claim types, timing, and any requirements for repeated evidence. Document whether the result means “a diagnosis was observed” or supports a stronger definition of the condition. That distinction matters when measuring prevalence or selecting patients for an intervention.
 
-NDC standards for National Drug Code.  The NDC on a pharmacy claim identifies the actual drug being prescribed.  The NDC code set was first introduced in 1972 by the U.S. Food and Drug Administration (FDA).  Today there are well over 800,000 distinct codes in circulation.  The exact number of codes isn't known because this terminology has not been well-managed over the years.
+## Inpatient procedures: ICD-10-PCS
 
-The Tuva Project gets NDC, along with RxNorm and ATC, from CodeRx.  This data is pulled from the FDA and merged with a couple of other sources (because the FDA source is incomplete) and updated monthly.  The NDC dictionary is available in the `terminology.ndc` data table.
+**ICD-10-PCS**, the Procedure Coding System, is used for hospital inpatient procedure reporting. Its codes have seven characters, with meaning determined by the coding system's structure. CMS publishes the [PCS files, tables, and guidelines](https://www.cms.gov/medicare/coding-billing/icd-10-codes).
 
-The original NDC consisted of 10 digits broken up into 3 segments:
+PCS is separate from ICD-10-CM. One describes procedures; the other describes diagnoses. They are also separate from CPT. A crosswalk between procedure systems may be useful for a defined analysis, but it is not necessarily one-to-one and should not be treated as a lossless translation.
 
-- 1st Segment: Labeler
-- 2nd Segment: Product
-- 3rd Segment: Package
+When analyzing an operation, decide whether the unit of interest is a billed service, a procedure record, or an encounter. A count of procedure codes is rarely a reliable count of operations without additional grouping logic.
 
-The Labeler segment is the only segment assigned by the FDA and it identifies the drug manufacturer i.e. the organization that produced the drug.  The product segment identifies specific information about the drug.  And the package segment identifies specific information about the package e.g. number of pills.  
+## Professional and outpatient services: CPT and HCPCS
 
-![NDC](/img/NDC.jpg)
+**HCPCS**, pronounced “hick-picks,” stands for Healthcare Common Procedure Coding System. It has two levels.
 
-Today, NDC codes are written as a 10-digit number on drug packaging.  You typically find this number near the bar code on the packaging.  An additional digit is added, bringing the total to 11 digits, when billing an NDC on a healthcare claim.  The 11-digit number follows a 5-4-2 format i.e. 5 digits in the first segment, 4 digits in the second segment, and 2 digits in the third segment.  The rules for which segment the additional digit is added to are as follows:
+**Level I is CPT**, Current Procedural Terminology, maintained by the American Medical Association. It describes professional services and procedures and is also used in outpatient facility billing. CPT codes have five characters. Many familiar Category I codes are numeric, while other categories include letters. A data type that accepts only integers will lose valid codes. The AMA explains the numeric and alphanumeric forms in its [CPT Category II guidance](https://www.ama-assn.org/practice-management/cpt/category-ii-codes).
 
-- 4-4-2 becomes 5-4-2
-- 5-3-2 becomes 5-4-2
-- 5-4-1 becomes 5-4-2
+CPT is copyrighted and licensed by the AMA. Use an appropriately licensed source for the code set and descriptors, and confirm that your license covers the intended use and distribution. Publicly accessible examples or fee schedules do not by themselves establish permission to redistribute a complete CPT dictionary. See the [AMA's licensing information](https://compliance.ama-assn.org/hc/en-us/categories/1500000211461-Information-for-CPT-License-Applicants).
 
-Essentially you add a leading zero to whichever segment needs it.
+**Level II**, maintained by CMS, uses five-character alphanumeric codes: one letter followed by four digits. These cover items and services such as ambulance transport, equipment, supplies, and many drugs administered under medical benefits. CMS publishes the [HCPCS Level II files and updates](https://www.cms.gov/medicare/coding-billing/healthcare-common-procedure-system).
 
-**Not Just NDCs**
+A HCPCS code is not itself a payment rate. Payment depends on the payer, contract, setting, date, units, modifiers, and other circumstances. The same reported service can have different allowed amounts without either record being wrong.
 
-The NDC field in claims data is a complicated data element to work with, not just because of the 11-digit issue mentioned above, but also because the field contains entries from other code sets.  For example, the NDC field in a claims dataset will also contain:
+Keep **modifiers** and **units** alongside the procedure code. Modifiers supply additional context; units describe the quantity under the code's billing convention. A unit might represent a service, a time interval, or an amount of a drug. Do not assume one line or one unit equals one visit, dose, or treatment.
 
-- NDCs that have not been fully approved by the FDA
-- Drug Supply or Medical Device Codes e.g. UPC (Universal Product Code) or HRI (National Health Related Item Codes)
+## Drugs: National Drug Codes
 
-The latter is included because retail pharmacies often sell and bill health insurers for drug supplies and other medical equipment e.g. syringes for insulin.
+An **NDC** identifies a drug product and package through three segments:
 
-**One Drug, Many NDCs**
+- The **labeler** segment identifies the entity associated with the listing, which may be a manufacturer, repackager, or relabeler.
+- The **product** segment distinguishes the product, including characteristics such as formulation and strength.
+- The **package** segment distinguishes the package configuration.
 
-Another thing that makes NDC a complex data element to work with is that there are often many NDCs for the same drug or active ingredient.  So answering a question like “which patients have received Drug X?” often requires looking up dozens of NDCs.  There are more than 600 distinct NDCs for acetaminophen.  
+The [FDA NDC Directory](https://www.fda.gov/drugs/drug-approvals-and-databases/national-drug-code-directory) is an important reference, but inclusion in the directory does not establish FDA approval, reimbursement eligibility, or that a patient took the medication. The directory also does not contain every product that may appear in historical claims. Keep those questions separate from whether the code matched a reference file.
 
-Because of these complexities, if you’re doing analytics on pharmacy claims, the typical approach is to map NDC to other drug classification terminologies and use these other terminologies for analytics.  In the Tuva Project we map NDCs to RxNorm codes and then map RxNorm codes to ATCs.  This allows you to lookup a particular ATC code to easily ask questions like "which patients have taken a beta blocker?"
+### Normalize the segments, not just the length
 
-**References**
+FDA's current 10-digit NDCs use three segment patterns: 4-4-2, 5-3-2, and 5-4-1. Many reimbursement datasets use an 11-digit, 5-4-2 representation. Converting a known 10-digit pattern to that representation requires adding a leading zero to the short segment, as illustrated in the [Idaho Medicaid NDC billing guide](https://www.idmedicaid.com/Reference/NDC%20Format%20for%20Billing%20PAD.pdf).
 
-- [The Drug Data to Knowledge Pipeline: Large-Scale Claims Data Classification for Pharmacologic Insight](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5001754/)
-- [Using National Drug Codes and Drug Knowledge Bases to Organize Prescription Records from Multiple Sources](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2965522/)
-- [National Drug Code (NDC) Conversion Table](https://health.maryland.gov/phpa/OIDEOR/IMMUN/Shared%20Documents/Handout%203%20-%20NDC%20conversion%20to%2011%20digits.pdf)
-- [National Drug Codes Idaho MMIS](https://www.idmedicaid.com/Reference/NDC%20Format%20for%20Billing%20PAD.pdf)
-- [https://www.fda.gov/drugs/drug-approvals-and-databases/national-drug-code-directory](https://www.fda.gov/drugs/drug-approvals-and-databases/national-drug-code-directory)
-- [https://www.bcbsil.com/pdf/pharmacy/ndc_faqs.pdf](https://www.bcbsil.com/pdf/pharmacy/ndc_faqs.pdf)
-- [Estimating Medication Persistency Using Administrative Claims Data](https://ajmc.s3.amazonaws.com/_media/_pdf/AJMC05julSIKKA_449to457.pdf)
-- [Using Pharmacy Claims Data to Study Adherence to Glaucoma Medications: Methodology and Findings of the Glaucoma Adherence and Persistency Study (GAPS)](https://iovs.arvojournals.org/article.aspx?articleid=2183370)
-- [Accuracy of Prescription Claims Data in Identifying Truly Nonadherent Patients](https://www.jmcp.org/doi/10.18553/jmcp.2019.25.12.1349)
+These are formatting examples only; they do not identify drugs for use in an analysis:
+
+| Original pattern | Illustrative segmented value | 5-4-2 representation |
+|:--|:--|:--|
+| 4-4-2 | `1234-5678-90` | `01234-5678-90` |
+| 5-3-2 | `12345-678-90` | `12345-0678-90` |
+| 5-4-1 | `12345-6789-0` | `12345-6789-00` |
+
+Left-padding the entire string works for the first pattern and produces the wrong result for the others. Once the hyphens are removed, an arbitrary 10-digit string may not reveal the original segmentation. Use the source's stated format and a reference lookup to resolve it. Do not guess from length alone.
+
+Preserve the original value, normalized value, and any product-code qualifier. A pharmacy product field may also contain identifiers for supplies or other products. A failed NDC match needs investigation; it does not prove that the source record is invalid. Store codes as text so that leading zeros survive ingestion.
+
+### Plan for the FDA format change
+
+As of September 2026, FDA has finalized a move to a uniform **12-digit, 6-4-2 format**, effective **March 7, 2033**. FDA states that it will continue assigning the current 10-digit formats before that date. The rule concerns FDA-assigned NDCs and does not itself change the 11-digit reimbursement format. These details are explained in [FDA's NDC format guidance](https://www.fda.gov/drugs/electronic-drug-registration-and-listing-system-edrls/national-drug-code-format).
+
+The practical implication is to keep format information and avoid designing a drug identifier field that assumes every valid representation must always be 11 characters. A format transition needs an explicit mapping, not a general rule to truncate or pad incoming values.
+
+### One medication, many product codes
+
+A medication can appear under many NDCs because manufacturers, strengths, dosage forms, and packages differ. Searching for one NDC will usually answer a narrower question than “Which patients received this medication?”
+
+**RxNorm**, maintained by the National Library of Medicine, provides normalized drug concepts, including concepts that combine ingredient, strength, and dose form. Mapping NDCs to [RxNorm](https://www.nlm.nih.gov/research/umls/rxnorm/overview.html) can support analysis at a level that fits the question. For an ingredient-based cohort, strength and package differences may be irrelevant; for dose or formulation analysis, those differences may be essential.
+
+Mappings need their own quality checks. Preserve unmapped products and measure their share of prescriptions and spending. If one product maps to multiple concepts, select the intended concept type before joining to claims so that the mapping does not multiply records. Therapeutic classifications can support broader drug-class analysis, but the mapping and classification version remain part of the measure definition.
+
+## Code versions and analytical definitions
+
+A code should be interpreted using the code system and version applicable to the record. Current terminology alone is not enough for a historical dataset. Retired codes can remain valid on older claims, and newly introduced codes should not be assumed valid in earlier periods.
+
+Maintain effective dates where the source provides them, retain historical codes, and apply the relevant coding-date rule. For inpatient coding, discharge date can determine the applicable release; other services use the relevant service date. Consult the release guidance instead of assigning versions from the warehouse load date. [CDC's ICD-10-CM release files](https://www.cdc.gov/nchs/icd/icd-10-cm/files.html) illustrate why a fiscal-year version and its effective period both matter.
+
+Finally, distinguish a **code set** from a **value set** and a **grouper**. A code set defines the available vocabulary. A value set selects codes for a particular purpose, such as identifying a condition or service. A grouper applies rules to classify records or assemble them into analytical units. DRG assignment, for example, depends on a particular grouper and version; a DRG number without that context is incomplete.
+
+A reliable analytical table therefore retains more than a description. It preserves the original code and system, any normalized representation, the applicable version or date, and the mapping used for the analysis. That information lets us explain why a claim entered a cohort and reproduce the decision when the reference data changes.

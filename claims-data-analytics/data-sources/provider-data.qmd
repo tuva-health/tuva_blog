@@ -3,63 +3,90 @@ id: provider-data
 title: "Provider Data"
 ---
 
-## What is an NPI?
+A claim can name the clinician who performed a service, the organization that billed for it, the facility where it happened, and the clinician who ordered it. All of them are providers, but they play different roles. Choosing the wrong one changes the answer to questions about cost, referral patterns, access, and quality.
 
-Individual provider and facility information is encoded in claims data via National Provider Identity (NPI) codes.  However, one needs to enhance individual provider NPI codes with specialty information and group facility provider NPI codes into distinct locations before this information is useful for analytics.
+In this chapter, we'll connect the identifiers in claims to information about clinicians and organizations. We'll also separate what a provider directory tells us from what we still need to establish about specialty, location, and affiliation.
 
-An NPI is a unique 10-digit numeric identifier for covered healthcare providers and organizations.  It is a HIPAA standard created to help send health information electronically.  An NPI won’t change even if a provider’s name, address, taxonomy (specialty), or other information changes. However, in some situations, an NPI may need to be deactivated or replaced, such as the retirement or death of an individual, disbandment of an organization, or fraudulent use of the NPI.
+## Start with the provider's role
 
-All health care providers who are HIPAA-covered entities, individuals, or organizations get an NPI.  It is required for enrollment in Medicare and for submitting claims.  When a provider registers for an NPI, CMS attempts to verify only two things: (1) the provider's social security number and (2) that the provided business address is valid.  CMS does not verify whether the provider actually works at the submitted business address, and CMS does not attempt to verify the provider's self-reported specialty.
+Before looking up a provider, decide which relationship matters to the question. A generic `provider_id` column hides distinctions that are often central to the analysis.
 
-There are two types of NPIs designated by the entity type.  Entity type 1 is for individuals e.g. physicians.  Each individual only gets a single NPI.  If you’re an individual healthcare provider who’s incorporated, you may need to get an NPI for yourself (Type 1) and an NPI for your corporation (Type 2).
+| Provider role | What it represents | Example use |
+|:--|:--|:--|
+| Billing | The individual or organization billing for the service | Spending by billing practice |
+| Rendering | The clinician or other provider identified as performing the service | Services performed by clinician |
+| Attending | The clinician identified as responsible for the care reported on the institutional claim or encounter, including outpatient care | Analysis of attending responsibility |
+| Operating | The clinician identified as performing an operation | Surgical practice patterns |
+| Referring or ordering | The provider who referred the patient or ordered the service | Referral and ordering patterns |
+| Service facility | The location or entity identified for where care occurred | Site-of-care analysis |
 
-Entity type 2 is for organizations.  The main difference with type 2 NPI numbers is that organizations can have several NPI numbers rather than just one.  Some organizations may have parts or locations that work independently from their parent organization, referred to as “subparts”. Each subpart can get its own NPI.
+The available roles vary by claim type and extract. A role may appear on the header, the line, or both. Preserve these distinctions when mapping the source. CMS's [institutional billing instructions](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/clm104c25.pdf) define the attending and operating roles. The [Key Data Elements](claims-data/key-data-elements.qmd) chapter places provider fields alongside the other information needed to interpret a claim.
 
-NPIs are found in the following locations on claims forms:
-    - On the Professional CMS-1500 form, insert the main or billing Entity Type 2 NPI in Box 33a (Billing Provider). Insert the service facility Entity Type 2 NPI (if different from main or billing NPI) in Box 32a (Service Facility). Insert Entity Type 1 NPIs for rendering providers in Box 24J (Rendering Provider).
-    - On the Institutional UB-04 form (aka CMS-1450), insert the main Entity Type 2 NPI in Box 56 (Billing Provider); insert Entity Type 1 NPIs for rendering providers in boxes 78-79 (Other Provider).
+For example, a physician can render services while a group practice bills for them. Grouping spending by the billing provider answers a different question from grouping it by the rendering clinician. Neither field automatically identifies the clinician's employer or the organization responsible under a value-based care agreement.
 
-## What is NPPES?
+## What an NPI identifies
 
-CMS developed the National Plan and Provider Enumeration System (NPPES) to assign and manage NPIs.  This information is publicly available and disclosed under FOIA.  The data is distributed to the public via monthly data file downloads or via the API.  However, the API has limitations. It’s useful for single-provider lookups but not for getting batch information.  To get around these limitations NPPES offers batch downloads.
+The **National Provider Identifier**, or **NPI**, is a 10-digit identifier used for healthcare providers in standard administrative transactions. CMS assigns NPIs through the National Plan and Provider Enumeration System, usually called NPPES. The digits do not encode a provider's specialty or geography. Store the identifier as text and join it to reference data to learn about the provider. [CMS's NPI overview](https://www.cms.gov/priorities/key-initiatives/burden-reduction/administrative-simplification/unique-identifiers/npis) describes the standard.
 
-The batch downloadable NPI data has several limitations that make it difficult to work with: 
-    - The monthly file is a very large full replacement file that must be unzipped.  
-    - Many fields are codes requiring a separate lookup file for human-readable descriptions. These code sets are not distributed via data files. They are instead in a PDF provided with the monthly download. The codes must be extracted and transformed before they are useful.
-    - Many pieces of information are in several columns that require applying additional logic to get any meaningful value out of them.
-    - Once a provider has an NPI, there are no scheduled requests for updated information; however, providers are instructed to update their information in NPPES within 30 days of a change of required data fields. The degree to which providers update their information is not fully known.
-    - There is no explicit penalty for a provider having out-of-date information in NPPES.
-    - This means the data in NPPES is not necessarily reliable but remains one of the few publicly available sources of provider data.
+There are two entity types:
 
-There are a few other sources of provider data that are worth mentioning:
+- **Type 1** identifies an individual, such as a physician or nurse practitioner. An individual generally retains the same NPI across jobs and practice locations.
+- **Type 2** identifies an organization, such as a group practice, hospital, or supplier. Organizational subparts can have their own NPIs, so a health system may be associated with many NPIs.
 
-**PECOS (Provider Enrollment, Chain, and Ownership System)**
-    - This is a registry of providers eligible to bill Medicare.
-    - PECOS gathers more detailed information than NPPES on the financial arrangement between an individual provider and a practice group or organization, as well as a number of other details about business ownership and history of adverse outcomes with malpractice claims.
-    - Providers are required to update their information every five years or whenever changes occur.
-    - Unfortunately, this is not publicly available for research.
+An incorporated clinician can have an individual NPI and a separate organizational NPI for the corporation. These represent different entities. Likewise, a billing NPI is not necessarily Type 2: an individual can bill in their own name. The [CMS identifier FAQs](https://www.cms.gov/priorities/key-initiatives/burden-reduction/administrative-simplification/unique-identifiers/faqs) explain entity types and subparts.
 
-**AMA (American Medical Association) Masterfile**
-    - The Masterfile attempts to be a comprehensive registry of all physicians trained in the United States.
-    - It captures information from institutions on individuals at the time that they enter medical school or a graduate medical program in the United States.
-    - It relies primarily on physicians voluntarily completing questionnaires to update information about their practice and location.
-    - This data is publicly available for research.
+An NPI is not evidence that a provider is licensed, credentialed, in network, or currently practicing at a particular address. CMS explicitly cautions that [NPI issuance does not validate licensure or credentialing](https://download.cms.gov/nppes/NPI_Files.html). Use the relevant licensing, credentialing, or network source when the analysis depends on one of those facts.
 
-## What are provider taxonomies?
+## Working with NPPES
 
-When providers register with NPPES they are required to provide one primary provider taxonomy code (and up to 14 additional taxonomies) which defines the health care service provider type, classification, and area of specialization.  The Health Care Provider Taxonomy code set is a collection of unique alphanumeric codes (e.g. 207KA0200X), ten characters in length, maintained by the National Uniform Claim Committee (NUCC).  A separate terminology lookup data source is required to interpret this code which does not come with the NPPES data set.  The taxonomy codes are updated twice a year (January and July).
+NPPES is a useful starting point because it gives us a common identifier and public information about individual and organizational providers. Its records include names, entity type, addresses, taxonomy codes, and administrative dates.
 
-## Why are TAX IDs included in claims?
+CMS offers the NPI Registry for lookups and downloadable files for population-scale work. The [NPPES download page](https://download.cms.gov/nppes/NPI_Files.html) publishes monthly files, weekly incremental updates, and deactivation information. Companion files include additional organizational names and non-primary practice locations. Use the current file documentation when building an import; layouts can change.
 
-In addition to NPIs, federal tax IDs are required fields on both institutional and professional claim forms. The tax ID can be either an employer identification number (EIN), or an invidual's social security number.
+Three modeling decisions make this data easier to use.
 
-Most provider analyses are conducted using the NPIs recorded in claims. Tax IDs are used for some financial use cases, since network contracts are written at the TIN level. For example, network discounts are often analyzed by tax ID, since network contracts are written at the tax ID level ([Example](https://us.milliman.com/-/media/milliman/importedfiles/uploadedfiles/insight/healthreform/pdfs/determining-discounts.ashx)).
+First, keep **one provider identity record per NPI**, with repeated taxonomies and locations in related tables. Joining every taxonomy directly to every claim line can multiply spending. If a provider has three taxonomies, a careless join turns one $100 line into three rows totaling $300.
 
-## References
-- [Medicare Claims Processing Manual, Chapter 25 - Completing and Processing the Form CMS-1450 Data Set](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/clm104c25.pdf)
-- [Patient Attribution: Why the Method Matters](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6549236/)
-- [A Novel Approach to Attribute Responsible Physicians Using Inpatient Claims](https://www.ajmc.com/view/a-novel-approach-to-attribute-responsible-physicians-using-inpatient-claims)
-- [https://www.cms.gov/Regulations-and-Guidance/Administrative-Simplification/NationalProvIdentStand/DataDissemination](https://www.cms.gov/Regulations-and-Guidance/Administrative-Simplification/NationalProvIdentStand/DataDissemination)
-- [https://nucc.org/index.php/code-sets-mainmenu-41/provider-taxonomy-mainmenu-40/csv-mainmenu-57](https://nucc.org/index.php/code-sets-mainmenu-41/provider-taxonomy-mainmenu-40/csv-mainmenu-57)
-- [https://www.cms.gov/Outreach-and-Education/Medicare-Learning-Network-MLN/MLNProducts/downloads/NPI-What-You-Need-To-Know.pdf](https://www.cms.gov/Outreach-and-Education/Medicare-Learning-Network-MLN/MLNProducts/downloads/NPI-What-You-Need-To-Know.pdf)
-- [https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3983736/](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3983736/)
+Second, keep **the source and observation date** of directory attributes. A current practice address is not proof of where a service occurred three years ago. Saving successive directory snapshots can show when an attribute changed in the data, but the first time we observe an address is not necessarily the date the provider moved there.
+
+Third, measure **match coverage**. Count claims with missing NPIs, invalid formats, and NPIs absent from the reference file. Report the associated spending as well as the row count. An unmatched provider on a few expensive institutional claims can matter more than thousands of unmatched low-cost lines.
+
+NPPES is maintained through provider submissions and updates. Treat its attributes as reported directory information. Reconcile conflicting records with source-specific evidence instead of assuming that whichever file was downloaded most recently must describe the service date best.
+
+## Taxonomy and specialty
+
+The **Health Care Provider Taxonomy** code set classifies provider types, classifications, and areas of specialization. Codes are ten-character alphanumeric identifiers maintained by the National Uniform Claim Committee, or NUCC. A provider can report multiple taxonomies and identify a primary one.
+
+Taxonomy is self-selected. It does not establish board certification, and it does not describe every service a provider performs. NUCC explains how providers select codes and the code set's scope in its [taxonomy guidance](https://www.nucc.org/index.php/code-sets-mainmenu-41/provider-taxonomy-mainmenu-40), which also links to the code lookup.
+
+For analytics, choose a specialty definition that fits the question. If the question is how much was billed by providers reporting a primary care taxonomy, NPPES may be sufficient. If the question is whether a clinician qualifies for a particular contract or attribution method, use that method's specialty rules and supporting data.
+
+Keep the reported taxonomy separate from a derived analytic specialty. A mapping that groups several taxonomies into “primary care” is an analytical choice. Preserve the original codes, the mapping version, and how multiple taxonomies were resolved so that someone else can reproduce the result.
+
+## Organizations, locations, and affiliations
+
+An organization, a billing entity, and a physical location are different things. One practice may operate at several addresses under the same billing NPI. One building may contain several unrelated practices. A hospital campus can generate claims under multiple NPIs.
+
+Suppose two clinicians share a mailing address in NPPES. That may be a centralized administrative office. It does not prove that they work at the same clinic. Conversely, clinicians with different mailing addresses may belong to the same organization. Address matching can generate candidates for review, but it should not silently become an ownership rule.
+
+For a facility analysis, use the service location recorded on the claim when available and assess how reliably it identifies the site. For a group or health system analysis, maintain a relationship table that records the provider, related organization, relationship type, source, and applicable dates. Keep contractual participation, employment, ownership, and observed billing relationships distinct.
+
+This matters during acquisitions and practice changes. Applying today's group roster to five years of claims can make historical spending appear to move between organizations even though the care itself has not changed.
+
+## Other provider data sources
+
+NPPES is not the only source, and combining sources is often necessary.
+
+**Medicare enrollment data.** PECOS, the Provider Enrollment, Chain, and Ownership System, supports Medicare provider enrollment. Although the full administrative system is not a public directory, CMS publishes selected information through the **Medicare Fee-for-Service Public Provider Enrollment** files. These include enrollment and relationship information for the population described in the [public-file methodology](https://data.cms.gov/resources/fee-for-service-public-provider-enrollment-methodology). They describe currently approved enrollments at the extract date, not a complete history of participation. They are useful for Medicare enrollment questions; they are not a complete roster of every provider in every payer's network.
+
+**Payer and program rosters.** These can establish participation in a network, group, or care arrangement for a specified period. Confirm what participation means and whether the roster describes current or historical status. A claim paid at an in-network rate and a provider listed on today's roster are different pieces of evidence.
+
+**Licensing and commercial reference data.** State licensing authorities and licensed provider datasets can supply details that a public enumeration file does not establish. Evaluate their covered population, update process, historical depth, and permitted uses. “Available for research” does not necessarily mean openly downloadable or freely redistributable.
+
+## Where tax identifiers fit
+
+A **Taxpayer Identification Number**, or **TIN**, identifies a taxpayer. Claims extracts may include a billing tax identifier, which can help connect claims to a contractual or financial entity. It can represent an organization or, in some cases, an individual. Handle it as sensitive data and use a protected internal key in shared analytical outputs.
+
+An NPI and a TIN are not interchangeable. Several clinicians may bill under one TIN, and a clinician may have billing relationships with multiple TINs over time. Network contracts and performance arrangements also differ in the entities they recognize. Use the contract's actual definition instead of assuming every agreement operates at the TIN level.
+
+The useful result is a provider model that preserves identity, role, and relationships separately. Then “spending by provider” becomes a question we can define precisely: spending for which services, attributed to which role, grouped under which organization, during which period?

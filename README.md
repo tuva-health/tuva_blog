@@ -28,13 +28,18 @@ The goal of this project is to publish practical knowledge about doing healthcar
 
 ## Local Development
 
-Prerequisite: install Quarto.
+Prerequisite: install Quarto 1.10.18, the version pinned in `netlify.toml`.
 
-Build the site:
+Build the blog and claims book together:
 
 ```bash
-quarto render
+bash build.sh
 ```
+
+The helper renders each project into its own `_book` directory, then moves the
+fresh book into `_book/claims-data-analytics`. The combined `_book` directory is
+the hosting output. Replacing the book directory keeps retired pages and old
+assets out of subsequent builds.
 
 Preview with Quarto:
 
@@ -62,7 +67,7 @@ Then open `http://127.0.0.1:5117`.
 2. Add a hero image under `img/blog/`.
 3. Add a card entry in `index.qmd`.
 4. Add the `.qmd` file to `project.render` in `_quarto.yml`.
-5. Run `quarto render` and verify page layout, links, and search behavior.
+5. Run `bash build.sh` and verify page layout, links, and search behavior.
 
 ## Search Behavior (Important)
 
@@ -94,11 +99,29 @@ These behaviors are controlled by page-level CSS classes set at runtime in `glob
 
 For Netlify (or similar static host):
 
-- Build command: `quarto render`
+- The Netlify build installs Quarto 1.10.18 and runs `bash build.sh` to render
+  both projects and assemble the hosting output. The version is pinned so
+  the book's layout remains reproducible.
 - Publish directory: `_book`
 - Local build/cache artifacts (`_book/`, `.quarto/`, `_freeze/`, `.ipynb_checkpoints/`) are intentionally gitignored.
 
 Because Quarto renders from source on each build, generated assets like `search.json` stay current automatically.
+
+The claims book uses Quarto's Cosmo theme and floating book sidebar. Its layout
+and typography match the R for Data Science reference at
+<https://r4ds.hadley.nz/>; `claims-data-analytics/book.scss` supplies Tuva blue
+and the measured heading styles. Keep the centered reading width, default
+sidebar spacing, neutral headings, and right-side section contents when making
+future styling changes. The reference book's prose and cover artwork are not
+part of this project.
+
+The public Docs site serves the book at
+`/knowledge-base/claims-data-analytics-book/`; its other book aliases redirect
+there. Book content and legacy-host routes live in this repository, while the
+Docs repository owns the public-domain proxy and its chapter redirects. Keep
+both route tables aligned when adding, renaming, or retiring chapters. Verify
+extensionless, `.html`, and trailing-slash chapter URLs together with their
+relative assets. Publish the book output before Docs redirects to new chapters.
 
 ## Maintenance Checklist
 
