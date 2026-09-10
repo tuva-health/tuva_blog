@@ -1,89 +1,98 @@
 ---
 id: member-and-enrollment-data
-title: "Eligibility and Enrollment Data"
+title: "Eligibility and Enrollment"
 ---
 
-## Eligibility Overview
+Claims tell us about people who used healthcare. Enrollment tells us about the population that could have used it. We need both to answer even a basic question like, “How much did healthcare cost per member this month?”
 
-Eligibility and enrollment data is a critical piece of data tracked by health insurance companies that determines when a person (i.e. member) was eligible to receive specific health benefits.  Note that "enrollment" and "eligibility" are often used interchangeably and typically refer to the same type of data; however, if a partner is providing two kinds of files, the eligibility files are generally more bare-bones and include very little demographic information, focusing exclusively on actual eligibility spans (i.e. start dates and end dates). Enrollment files generally include broader demographic and contact information for the member. 
+Imagine two health plans that each paid $1 million in claims in January. One covered 1,000 members; the other covered 10,000. Their total spending is the same, but their cost per member is very different. If we build our population from claims alone, we also leave out everyone who had coverage and no claims. The denominator is wrong before the analysis begins.
 
-When you begin supporting a member population, one of the first things you'll need to determine is "who is eligible for this program?" This may initially seem straightforward, but there's generally a lot of nuance to how eligibility checks and transmission of eligibility information are shared between organizations. 
+In this chapter, we'll work through how coverage is represented, how it changes, and how to turn that history into a useful population for analytics.
 
-## Common Methods of Eligibility Transmission
+## What the data represents
 
-1. **Eligibility APIs**: Eligibility APIs are often available and required to validate the eligibility of the member/patient for services at the time of enrollment or service. Note that these eligibility checks are usually real-time (or allow you to check eligibility on a particular date), and only tell you whether a member is covered at that moment in time. Eligibility APIs are not generally good at determining the entire history of coverage for a member, and this is why they are typically paired with eligibility files that provide a historical record of a member's coverage.
+**Eligibility** describes whether someone meets the requirements for a benefit or program. **Enrollment** records their participation in a plan. **Coverage** describes the benefits in force for a period of time. These concepts are related, but being eligible to enroll does not necessarily mean someone enrolled or has active coverage.
 
-2. **Eligibility Flat Files**: Eligibility files in a "flat" format (CSV, pipe-delimited, fixed-width, etc.) continue to be the industry workhorse. Most employers, brokers, and health plans rely on 834s or proprietary formats to exchange large batches of enrollment data on a set schedule (generally weekly or monthly). These files are dependable for exchanging large volumes of data, but they have a lag — retro changes or new enrollments may not be reflected until the next file cycle.
+Data suppliers often use these words interchangeably in file names. An “eligibility” file may contain coverage history and demographics; an “enrollment” file may contain only current members. Read the source definition instead of inferring the contents from the name.
 
-Given the strengths and weaknesses of APIs and flat files, most organizations use the two side by side. Flat files handle the bulk transfers, while APIs provide a way to layer on more timely updates and reconcile discrepancies. For example:
-- A flat file may load an employer's full membership each month.
-- APIs can be used daily to check for new enrollments, terminations, or changes in coverage tiers.
+For claims analytics, the central question is usually: **Which people had which benefits, during which dates, in the population represented by our claims?** Medical, pharmacy, dental, and vision coverage can have different histories. A member with medical coverage does not necessarily have pharmacy coverage in the same dataset. Coverage under another insurer does not guarantee that we receive those claims.
 
-Tuva relies exclusively on data received from flat files, as they are the best suited for analytical use cases and allow historical data to be altered and re-run (more on this later).  However, the above context should help in understanding discussions between organizations around eligibility verification.  The remainder of this section will focus on eligibility file formats and how they should be leveraged to ensure accurate analytics.
+Program participation adds another distinction. A person might have health plan coverage for a full year but participate in a care management program for only three months. Keep those periods separate so that a program enrollment date does not accidentally become a health insurance coverage date.
 
-## Common Eligibility File Formats
+## How coverage information arrives
 
-- **Eligibility Spans**: Eligibility files that leverage eligibility "spans" have only a single record per patient for a particular contiguous timeframe of eligibility (there's some nuance here if other member identifiers change, but we'll cover that more later on). Essentially, the number of records in the file will be substantially less, as members are not repeated as frequently in the "member month" file format outlined below. 
+There are two common jobs for coverage data: checking benefits for a particular person and maintaining a population over time.
 
-- **Member Months**: Member month files have a single record for each member, for each month, for each type of coverage they have (coverage type is only relevant if multiple coverage types are applicable, for instance, separate medical, dental, and vision coverage). Eligibility and demographic information can change in each individual member's monthly record (more on this in the Attributes section below). Generally, the latest information received from a member for that particular month is included in the monthly record, and any member's single-day coverage for a given day is included in that month.
+An eligibility inquiry serves the first job. For example, [CMS's HETS system](https://www.cms.gov/data-research/cms-information-technology/hipaa-eligibility-transaction-system) accepts X12 270 requests and returns 271 eligibility responses. APIs and other interfaces may also provide coverage information for requested dates. The historical range and detail depend on the service. A successful check for one patient does not establish a complete roster of everyone covered by the plan.
 
-## Retroactivity
-Healthcare organizations rarely deal with data that remains static. "Retroactive" changes (often just referred to as "retroactivity") occur frequently due to changes in coverage that require a particular member's coverage to be backdated in some way. Common reasons for retroactivity changes are:
-- A newborn added after birth
-- An employee who backdates coverage after a job change
-- A member's coverage is backdated due to non-payment (after a grace period)
-- A dependent dropped months after a divorce.
+Enrollment feeds serve the second job. They may arrive as X12 834 transactions, delimited files, or warehouse extracts. The [834 enrollment transaction](https://www.cms.gov/priorities/key-initiatives/burden-reduction/administrative-simplification/transactions/health-plan-enrollment-disenrollment) supports enrollment changes as well as periodic full updates. The transport format and the update rules are separate questions: a CSV can contain a snapshot or a set of changes, and an API can deliver either.
 
-These retroactive changes complicate the tracking of eligibility and can also have downstream impacts in other areas of healthcare data. Claims that were already processed may need to be reversed or reprocessed. Membership counts can swing up or down long after the fact, and billing and payroll systems may not align with the updated coverage. Each adjustment creates opportunities for mismatches between systems, making reconciliation a perennial task that every healthcare organization must manage. There is no "magic bullet" to manage retroactive changes; the best policy is to ensure you align on how to manage retroactive changes internally for reporting and with organizations you are transmitting data to and from.
+Before loading a feed, establish its population, historical window, delivery schedule, record key, and correction rules. Those details determine how to maintain history correctly.
 
-## Common Eligibility Types
+## Spans and monthly records
 
-**Incremental**: Incremental eligibility files are generally used when providing a member month file format, with only the most recent member months being provided in each individual file. This is the simplest method of transmission logic, as you can combine each individual file to obtain a complete history of eligibility; however, it will not capture retroactive changes to eligibility that may have occurred. For administering many programs, capturing retroactivity is unnecessary; however, it will impact many analytic calculations and, therefore, can cause issues when reconciling data across multiple programs.
+A **coverage span** represents an interval during which a set of coverage attributes applies. Consider this illustrative member:
 
-**Full Replacement**: Full replacement eligibility files provide a complete history of the eligibility records since the inception of the contract/program. Full replacement files can be supplied in either eligibility span or member month format, and allow retroactive changes to be captured correctly, and are the most accurate for reconciling changes over time; however, given that the files will continue to grow over time, this can cause some performance issues for transmission and processing over time.
+| Member | Benefit | Plan | Start date | End date |
+|:--|:--|:--|:--|:--|
+| A | Medical | Plan North | January 1 | March 31 |
+| A | Medical | Plan South | April 1 | December 31 |
 
-**Hybrid**: The limitations of incremental and full replacement files sometimes lead organizations to provide a hybrid set of files. Incremental files are leveraged for regular weekly/monthly updates, but yearly "true-up" files are provided with the "final" eligibility data for past years of data (generally after a period of run-out, 3 months being the most common). The final eligibility files are used for historical data, while incremental files are used where final data is not yet available, providing a "best of both worlds" approach that can be helpful for many programs.
+Across the two plans, this is one member with continuous medical coverage. Enrollment in Plan North ends and enrollment in Plan South begins, but those plan-level changes do not represent a gap in the person's coverage. Counting spans as people would count the member twice.
 
-## Eligibility File Attributes
+Spans can also split when an address, group number, selected primary care provider, or another attribute changes. Preserve the detail needed for those analyses while recognizing continuous coverage across adjacent spans. Confirm whether an end date is inclusive. An open end date might mean coverage is ongoing, or it might mean the date is missing; the source contract must tell you which.
 
-**Start & End Dates**:
-    - Eligibility start and end dates represent the beginning and end of a particular coverage. However, note that the existance of start or end date does NOT necessarily mean a member is new or is terminating coverage, a member may have changes plans, moved, or had some other attribute change that requires eligibility to change, and you will need to look across all eligibility records to determine if a member is truly new, termed, or just had a change in eligibility requiring a reset of start/end dates.
-    - Eligibility start and end dates are most commonly the first day and last day of a month, but note that this is not always the case. Sometimes mid-month start/end dates are required, this could be because of an employment event (mid-month hiring), a life event (birth of a child), or a program transition (Medicare/Medicaid transitions are often on the exact eligibility determination date)
+A **member-month file** summarizes coverage by calendar month. Its grain may be member, month, and benefit; it may also include plan or group. “One row per member per month” is therefore something to verify. Monthly files may contain partial-month coverage, so the presence of a row does not by itself establish a full month of exposure.
 
-**Subscriber/Cardholder**:
-    - Identifying the primary subscriber, contract holder, or cardholder is often necessary for understanding plan coverage and identifying/differentiating which members are covered under a particular policy. Typically, an eligibility file will have both a member ID and a subscriber ID; the member ID is unique to each individual member. In contrast, the subscriber ID is repeated for all members covered by the policy, which can be used to "group" members that are covered together. In addition to the subscriber ID used for grouping members, the members' "relationship" to the subscriber may also be listed; common relationship types used are:
-        - Spouse / Partner
-        - Child / Dependent
-        - Covered Adult
+Overlapping spans require similar care. Two identical medical spans may be duplicates. Two spans from different insurers may represent valid overlapping coverage. Two conflicting versions of the same enrollment may reflect a correction. Resolve these cases using source identifiers and update rules before counting covered days. For a person-level medical denominator, count the union of relevant covered days so that one person cannot contribute the same day twice.
 
-**Demographics**:
-    - Eligibility files generally also include member demographics and contact information; however, sometimes this information is provided separately in an "enrollment" or "marketing" file. If this is the case, you need to ensure that common member identifiers are available to combine the files and that you have effective dates in both files to make joining them seamless
-    - Note that changes in demographic information are often the cause of eligibility start/end date changes, so you may see eligibility spans that look unnecessary based on the plan coverage, but are due to demographic changes like a change of address.
-    - Age/Birth Date: Age/birth date is also commonly used; however, there is nuance here that must be accounted for. When calculating a person's age, it's essential to determine whether the file is based on the age as of the date of file generation or the date of coverage for that particular record. Best practice is to calculate the member's age for the timeframe in question so that analytics are accurate when you are analyzing data based on the age of a member (past year's data reflecting the member's current age will mislead and cause issues)
-    - Other Common Attributes:
-        - Plan / Group Info: 
-        - Address, Email, Phone Numbers:
-        - Other program eligibility (DUAL-coverage, subsidies eligibility, etc.)
+## Snapshots, changes, and retroactivity
 
-**Provider Alignment/PCP Election**: Often programs need to understand which provider a member is associated with in order to track performance or understand which provider gets to "take credit" for a member over a given time period. This is especially important under value based care and other financial agreements, but is also useful when understanding who is in the best position to help manage a particular patient. A variety of provider relationships are sometimes included in an eligibilty file:
-        - PCP Election: A member has proactively selected a physician as their PCP
-        - Provider Attribution: A member has been determined to be aligned to a physician based on their claims history (i.e. they see that provider most frequently)
-        - Provider Alignment: A member may be "assigned" to a particular physician, provider group, or health system based on contractual or other program specifications
+Coverage history changes after the fact. A newborn may be added with coverage effective at birth. A termination may arrive after the termination date. An earlier end date may be corrected. These are **retroactive changes**: we learn something today that changes our understanding of an earlier period.
 
-## EHR Coverage Data
-Coverage data that exists EHRs differs slightly from the information received on a traditional eligibility file, as its purpose is not to validate coverage but rather to store the most up-to-date information for that member. Many EMRs will have a history of changes in address and other demographic information for a member; however, the EHR patient data is often a snapshot in time, capturing only the latest demographic and health plan coverage information for a patient. You will need to account for this when creating historical analytics for a particular patient, and it may require combining the EHR data with other eligibility information (for instance, health plan eligibility files) to determine the history of coverage for a specific plan or program.
+The way a feed communicates those changes determines how we should process it.
 
-## Sources of Enrollment Data
-- Payers
-- Clearinghouses/Aggregators
-- CMS
-- NAIC
+| Delivery pattern | What it means | What the receiving system needs to do |
+|:--|:--|:--|
+| Full snapshot | All records within a defined population and time window | Replace or reconcile that scope, including records removed from it |
+| Change feed | Adds, updates, and possibly deletes since a prior delivery | Apply each operation to the correct existing record |
+| Rolling replacement | A recent historical window is restated | Replace that window and preserve history outside it |
 
-## Connecting Eligibility to Member Months
-No matter how eligibility and enrollment data is received, the data will need to be transformed into a "member month" format, which is the lingua franca of healthcare analytics and a corner stone to many of the different healthcare measures like PMPM, Util/1000 and generally understanding the changing size of a population over time. One of the most common transformations that occurs in healthcare analytics is to transform eligibilty spans into member months, and this is a part of the Tuva Project core transformations as well. 
+A change feed can handle retroactivity perfectly well if it includes the necessary historical corrections. Conversely, a monthly snapshot of *currently active* members cannot reconstruct past coverage by itself. Neither “incremental” nor “full replacement” tells you enough without knowing the scope.
 
-Here are some rules of thumb for how much coverage is required for a member to be included in a particular member month:
-- Frequent rules of thumb are that a member is included in a member month if they have any coverage during the month in question (even a single day), they must have coverage on a particular day (i.e. the 15th of the month), or they must have a full month's coverage to be included. Each methodology has it's pluses/minuses, the most important thing is that consistent rules are used and that stakeholders understand the criteria.
-- Often a member will be included in the member month table if they have any coverage, but separate "count" fields are included to allow stakeholders to count only members active on the 1st, 15th, last day, or full months coverage for different downstream use cases, this provides the most flexibility but can lead to inconsistencies in analysis if their is not alignment on which particular definition to use in different scenarios.
+Keep the effective coverage dates distinct from the date the record was received. Suppose a March delivery changes a member's coverage end date from March 31 to January 31. A current view should remove February and March coverage. A report reproducing what was known in February should use the earlier information. Retaining source deliveries or equivalent version history lets you answer both questions.
 
-See [here](/claims-data-analytics/analytics/member-months.html) for a more complete description of member months.
+When coverage changes, rebuild affected member months and dependent measures. A revised denominator can change PMPM even when the claims numerator stays the same. Agree on whether published reports are restated and which data cutoff governs a contractual calculation.
+
+## Member identity and changing attributes
+
+Enrollment data usually carries more than coverage dates. Several fields deserve attention because a plausible join can still produce the wrong population.
+
+**Member and subscriber identifiers.** A subscriber is the policyholder; a member is an individual covered under the policy. Several members may share a subscriber identifier. Use a person-level identifier for person-level analysis, preserve the source that issued it, and account for identifier changes. A subscriber ID alone is not a patient key.
+
+**Demographics.** Calculate age at the date relevant to the analysis using date of birth when available. A current age copied onto historical records will misclassify earlier periods. Address and other attributes may describe the coverage period or the latest known state. Make that distinction explicit when analyzing historical populations.
+
+**Plan and benefit attributes.** Preserve the product, benefit, employer group, and other dimensions needed to define the population. A benefit administered outside the supplied claims feed needs its own treatment; it should not silently enter a denominator for spending we cannot observe.
+
+**Provider relationships.** A member-selected primary care provider, a plan-assigned provider, and a provider attributed from claims are different relationships. Keep their effective dates and methods. They answer different questions about responsibility for a patient's care.
+
+An EHR may contain insurance information collected for registration and billing. That information can help explain a visit, but it may be a current snapshot or a history of recorded updates rather than a complete payer enrollment history. Determine what the extract preserves before using it to define covered time.
+
+## From coverage to exposure
+
+For monthly cost and utilization analyses, we commonly transform coverage into **member months**, a unit of population exposure. There is more than one defensible counting convention, and they produce different answers.
+
+Suppose Member A is covered throughout a 30-day month and Member B is covered only on the last day:
+
+| Convention | Member A | Member B | Total member months |
+|:--|--:|--:|--:|
+| Any covered day | 1 | 1 | 2 |
+| Covered on the 15th | 1 | 0 | 1 |
+| Full month of coverage | 1 | 0 | 1 |
+| Covered days divided by days in month | 1 | 1/30 | 1.0333 |
+
+With $1,000 of claims attributable to these members' covered days, PMPM is $500 under the any-day convention and approximately $967.74 under the fractional convention. Neither denominator can be interpreted without its definition. The point-in-time and full-month conventions may also require different numerator inclusion rules; do not switch denominators while leaving the population implicit.
+
+Choose the convention that fits the measure or agreement, and use it consistently across periods and comparison groups. Reconcile covered people, covered days, and member months to the source before interpreting cost trends. Then check that claims link to the intended members and coverage dates, and investigate unmatched claims instead of dropping them silently.
+
+The [Member Months](../analytics/member-months.qmd) chapter develops the denominator further. The essential work here is establishing a coverage history that includes members with no claims, handles corrections, and represents the benefits we can actually observe.

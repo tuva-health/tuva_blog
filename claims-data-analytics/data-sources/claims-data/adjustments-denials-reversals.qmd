@@ -1,108 +1,296 @@
 ---
 id: adjustments-denials-reversals
 title: "Adjustments, Denials, and Reversals"
-description: This section describes how claims, adjustments, denials, and reversals occur in claims data and how you can identify / manage them in your claim dataset to enable financial and population health analytics.
+description: How to reconstruct claim history, distinguish financial transactions from replacement records, and build reliable spending and utilization analyses.
 ---
 
-One of the trickiest issues to deal with in claims data is adjustments, denials, and reversals (what we often refer to as "ADR").  There are three types of claim records (original, adjustment, and reversal) and three types of claim payment statuses (paid, denied, reversed).  How you model claim record types and payment statuses will impact the analytics you're able to perform on your claims data.
+A patient receives care once, but the bill for that care can change several times. The provider submits a claim, corrects it, and submits it again. The payer makes a payment, recovers part of it, and issues a different payment. A diagnosis, service date, or place of service may change along the way.
 
-Let's take a step back and think about the types of analytics we perform on claims data.  At the highest level, we think there are two categories of claims analytics:
+By the time these records reach our warehouse, we have a history of billing activity. What we usually want for an analysis is a history of healthcare. Getting from one to the other is the work of handling **adjustments, denials, and reversals**, which we'll call **ADR**.
 
-1. Cashflow analytics
-2. Population health analytics
+In this chapter, we'll develop a way to preserve both histories. We'll work through common claim scenarios, investigate how related records are identified, and build views for financial and population health analysis. The central question throughout is simple: does this row describe a new service, a change to an earlier service, or a financial movement associated with it?
 
-Cashflow analytics includes analyses like calculating Incurred But Not Reported (IBNR) claims.  This sort of calculation is done by an actuary to measure and manage cash reserves for an insurance company or health plan.  To perform this type of analysis you need to see every iteration of a claim that occurred.  For example, if a claim was originally paid, then reversed and adjusted weeks later, you need to have full visibility into these payments and the dates when the payments occurred. Leveraging multiple iterations of a claim is also useful for the analytics team when it's necessary to align analytics with financial reporting, or when it's necessary to understand when a claim was first received or processed (the original claim received or paid date).
+## Two questions, two views of the data
 
-Population health analytics includes analyses around the cost of care, diagnosis and treatment, utilization, and risk of a patient population.  This type of analysis is more concerned with the final amounts paid (rather than intermediate adjustments and reversals) and the dates when services were delivered (as opposed to paid dates). 
+An analyst reconciling March payments wants to know what the payer paid and recovered in March. An analyst studying January utilization wants to know which services occurred in January, using the claim information available at a particular cutoff. These questions often begin with the same records, but they require different calculations.
 
-The trick is to model your claims data in such a way that supports both types of analyses, satisfying your cashflow analysis folks (e.g. actuaries and financial analysts) and your population health analysis folks (e.g. quality measures folks, data scientists, epidemiologists, also actuaries here too, etc.). This involves keeping the multiple iterations of the claim available for cashflow analytics while allowing population health and other analytics use cases to only worry about the final disposition, which we'll detail below.
+**Financial reporting and claims development** need payment activity and its timing. A January service might generate a February payment and a March recovery. Assigning everything to January would lose the payment-period history. Received dates, adjudication dates, and successive data deliveries also help explain how a reporting period developed.
 
-Let's quickly define the three different types of claim records:
+That history can support reserving, including estimates of incurred but not reported claims. Reserving also requires an incurred-period view and assumptions about obligations not yet represented in the data. A payment ledger alone is not an IBNR estimate, and a reserving method may use development summaries or successive snapshots rather than every individual claim event.
 
-- **Original:** This claim record type is the first (and sometimes only) claim submitted.
-- **Adjustment:** This claim record type is submitted if the original claim was denied or if the provider found an issue with the original claim they needed to correct.
-- **Reversals:** This claim record type is submitted if the original claim was paid, but then an adjustment was needed and the original claim needed to be backed out.
+**Population health analysis** usually needs the current adjudicated representation of care: the diagnoses, services, providers, and amounts that remain after corrections, organized by when care occurred. Keeping every superseded claim as another visit would distort utilization, clinical cohorts, risk scores, and spending by setting.
 
-The three types of payment statuses are straightforward:
+We therefore want two connected views:
 
-- **Paid:** Indicates the claim was paid (positive paid amount)
-- **Denied:** Indicates the claim was denied (zero paid amount)
-- **Reversed:** Indicates the claim is reversed (negative paid amount)
+- A **history view** that preserves the events or versions supplied by the source, including when we received them.
+- A **current adjudicated view** that resolves those records as of a stated cutoff, without treating each correction as additional care.
 
-## Modeling ADR
+“Current” is more precise than “final.” A claim considered complete today may change next month. And the current view should not be the only view we retain: denial management, appeals, claims development, and reproducing an earlier report all depend on information that a latest-record table can lose.
 
-It’s easiest to illustrate how adjustments, denials, and reversals manifest by looking at example scenarios.  By looking at examples we can also see how to model ADR claims to support both cash flow and population health analytics.
+## Record type is different from adjudication status
 
-![modeling_adr](/img/modeling_adr.jpg)
+Before looking at amounts, separate what happened to a record from what the payer decided about it.
 
-Let's walk through each scenario in the image above.  As we do, pay careful attention to how the cumulative amounts change from the original claim, to the reversal, to the adjustment claim.  Modeling the amounts this way is what enables both cashflow and population health analytics.
+| Concept | What it describes |
+| --- | --- |
+| Original | The initial claim or transaction in a source's history |
+| Adjustment | A change to a previous record or its adjudication |
+| Replacement | A new state intended to supersede an earlier state |
+| Reversal or void | An event that backs out a prior transaction or claim state |
+| Denial | A payer's adjudication outcome for a claim or line |
 
-### Scenario 1: Original Only
-This first scenario is the simplest.  There's only a single claim, with a single claim line, and it's the original claim (see claim_record_type) as you would expect.  This claim has been paid (see claim_status).  The billed, allowed, and paid amounts for this claim are equal to the cumulative amounts.  You'll see how these individual and cumulative claims differ in subsequent scenarios.
+An original claim can be denied and a corrected claim accepted. A paid claim can later be adjusted without having been denied. A reversal can be followed by a replacement, but not every adjustment requires a full reversal. Payers use these labels differently, so the table gives us concepts to investigate rather than a universal list of source codes.
 
-### Scenario 2: Denied / Re-submitted
-In the second scenario, the original claim was denied (see claim_status), so an adjustment claim was submitted and adjudicated.  The original claim could have been denied for any number of reasons.  The billed amount on the original claim was $100 and the allowed and paid amounts were $0 (no payment was allowed since the claim was denied).  
+One claim can contain both payable and denied lines. Interpret adjudication status at its recorded grain: a claim-level label may not describe the outcome of every service on the bill.
 
-The billed, allowed, and paid amounts on the second claim (the adjustment claim) were $75, $25, and $10, respectively.  Now pay attention to the cumulative billed, allowed, and paid amount columns.  These columns sum up the current and previous claim billed, allowed, and paid amounts.
+The sign of a payment is another distinct piece of information. A positive value can represent a payment movement or a reported balance. Zero can reflect a denial, patient cost sharing, another payer's responsibility, capitation, or a packaged service. A negative value can represent a reversal, a recovery, or an incremental adjustment. **A null amount is unknown; it is not a zero payment or a denial.**
 
-There's one unusual thing about cumulative_billed_amount in this scenario.  For denied claims, you don't add the billed_amount to cumulative_billed_amount total.  Doing so would screw up the billed-to-allowed ratio of the cumulative_billed_amount and cumulative_allowed_amount fields.
+Remittance adjustment reasons also extend beyond denials. The [X12 claim-adjustment reason codes](https://x12.org/codes/claim-adjustment-reason-codes) include deductibles, coinsurance, and contractual adjustments. Use the source's record type, status, reasons, and amount definitions together. No single sign test can replace them.
 
-Note that the adjustment claim gets a new claim_number and we associate this claim ID with the original claim via original_claim_number.
+## Five claim histories to understand
 
-### Scenario 3: Full Reversal / Adjustment
-In this scenario, the original claim was completely reversed and then an adjustment claim was subsequently submitted.  The cumulative billed, allowed, and paid amounts match the billed, allowed, and paid amounts from the final adjustment claim because the reversal claim negated all the amounts from the original claim.
+The following examples are synthetic. Amounts are in dollars, and the rows represent one claim family: an original bill and its related corrections. A family identifier is an analytical relationship, not necessarily a field the payer supplies.
 
-### Scenario 4: Full Reversal / Adjustment (w/ multiple lines)
-This scenario is similar to the third scenario but provides an example of how a full reversal and adjustment will look with multiple claim lines.  Note that cumulative amounts are tracked at the line level.
+For each example, distinguish the **amount reported on a row** from the **amount represented by the current claim**. Sometimes we obtain the current amount by summing movements. Sometimes we obtain it by selecting a replacement. The source contract determines which operation is valid.
 
-### Scenario 5: Partial Adjustment
-This final example shows how a claim may be partially adjusted, with an additional positive or sometimes negative payment amount.  
+### An original claim with no subsequent changes
 
-## How to Identify ADRs
+Suppose a claim bills $100, allows $50, and records a $25 payer payment. In this simple example, the other $25 of the allowed amount is assigned to the patient. With no subsequent changes, the original record also represents the current adjudication.
 
-**The number one thing you can do is ask the insurance company or health plan how to identify ADRs in the claims dataset.  If they can't tell you, that's a bad sign (but unfortunately this happens a lot).  In that case see below.**
+This is the easy case, but even here a repeated row needs investigation. Receiving the same claim in three monthly full-history deliveries does not create three services or three payments. We need to distinguish a new source event from another delivery of an event we already have.
 
-The exact manner in which claims adjustments and reversals manifest in your claims dataset may not be obvious or easy to identify.  However, they typically show up in 1 of 3 ways, depending on how the health insurer adjudicates their claims.  
+### A denied claim followed by a corrected submission
 
-- **Scenario 1:** Health insurer creates a new claim ID for each additional reversal and/or adjustment claim record
-- **Scenario 2:** Health insurer uses the original claim ID for each reversal and/or adjustment claim, but includes an adjustment/reversal code on each claim to indicate whether each new record was a reversal or adjustment
-- **Scenario 3:** Health insurer uses a combination of old and new claim IDs for reversals and/or adjustments (this is essentially a combination of scenario 1 and 2)
+Now suppose the first submission is denied and the provider sends a corrected bill under a new identifier:
 
-In our experience working across dozens of healthcare claims datasets, each scenario is equally common.
+| Claim ID | Reported outcome | Billed | Allowed | Payer paid |
+| --- | --- | ---: | ---: | ---: |
+| A100 | Denied | $100 | $0 | $0 |
+| A101 | Accepted | $75 | $25 | $10 |
 
-### Scenario 1: New Claim IDs for Each Adjustment/Reversal
+For the current service, the corrected bill reports $75 billed, $25 allowed, and $10 paid. The $100 on the denied submission remains useful for understanding the original billing attempt. It does not become an additional charge for a second service.
 
-Dealing with new claim IDs is the most difficult scenario because you are in effect trying to determine a linkage across claim IDs when there isn’t a piece of data that tells you this.  That is, you need to identify new Claim IDs that are related to the original Claim ID.  This can be tricky, but here are some steps you can follow to do this:
+A report of charges across submission attempts would show $175. A report of the current bill would show $75. These are different measures. Calling both “cumulative billed amount” hides the distinction; give the column a name and definition that identify what it measures.
 
-1. Start by looking for patients with multiple claims (i.e. multiple claim IDs).  
-2. To identify reversals, look for claims where all the data elements match, except the paid amount and the paid date.  
-3. To identify adjustments, look for claims that have a reversal, then look for subsequent claims where most of the information is the same but there may be minor differences (e.g. place of service code changed from 11 to 20).
+In this example, the denied record reports zero allowed and paid amounts. That is part of the example, not a rule for every denied record. Nor does the denial establish that the patient never received care. Preserve the original outcome for denial analysis and apply the appropriate claim-status rules for each clinical or utilization measure.
 
-### Scenario 2: Original Claim IDs for Each Adjustment/Reversal
+### A full reversal followed by a replacement
 
-This is the simplest scenario.  The payer / health plan has already done the bulk of the work for you - explicitly telling you which claims were adjusted / reversed and whether the claim was paid or denied.  However in practice this information is usually not completely available, so like most things in healthcare data there tends to be a bit of detective work to fill in the gaps.
+Here the source delivers signed movements for **all three monetary fields**. The second row fully backs out the first; the third introduces the corrected bill.
 
-### Scenario 3: Combination New and Original Claim IDs for Each Adjustment/Reversal
+| Event | Claim ID | Billed movement | Allowed movement | Paid movement | Cumulative paid |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Original | A200 | $100 | $50 | $25 | $25 |
+| Reversal | A201 | −$100 | −$50 | −$25 | $0 |
+| Replacement | A202 | $75 | $25 | $10 | $10 |
 
-Sometimes adjustments and reversals will appear as new claim IDs, but these claim IDs will include the original claim ID plus some additional characters.  For example:
+Adding the movements gives $75 billed, $25 allowed, and $10 paid. Those totals agree with the replacement in this particular source model. If the original payment occurred in February and the other two movements occurred in March, February paid activity is $25 and March activity is −$15.
 
-- original claim ID: A1234
-- adjustment claims ID: A12341
-- reversal claim ID: A12342
+The current service attributes come from the replacement. If its diagnosis or place of service changed, carrying forward the original attributes would attach the right payment to the wrong description of care.
 
-In this example you can see the subsequent claims have an integer appended to them.  
+Some sources reverse only selected financial fields or supply a reversal flag with unsigned values. We must not manufacture negative billed or allowed amounts merely because paid amount is negative. The signed representation above is useful only when the source actually supports it.
 
-## Real-world Impacts of ADRs
+### A reversal and replacement with multiple lines
 
-In an ideal world, all population health analytics should be based on a claims dataset that represents the true set of services rendered by the provider to the patient and payments rendered by the health insurer to the provider.  However, unless you account and correct for claims adjustments and reversals in raw claims data, you are including records in your analysis for services that may never have been delivered.  The problem with downstream analytics is much more on the utilization side than on the payments side.
+A claim with several lines has the same problem at another grain. Consider the paid amounts for two lines whose identities remain stable in this example:
 
-**Payments**
+| Event | Line 1 movement | Line 2 movement | Claim movement | Cumulative claim paid |
+| --- | ---: | ---: | ---: | ---: |
+| Original | $25 | $50 | $75 | $75 |
+| Full reversal | −$25 | −$50 | −$75 | $0 |
+| Replacement | $10 | $25 | $35 | $35 |
 
-Let’s start by exploring the impact on payments first, since it is minimal and more straightforward.  At the end of the day, claims adjustments and reversals will directly flow through to aggregate payment amounts (e.g. payments aggregated to PMPM level), generating the true/correct payment statistics.  For example, if a claim was submitted in error and then later a reversal was submitted, the sum of the paid amount for these two claims will be zero, which is the true paid amount we would expect.  As this example demonstrates, the aggregate payment amounts in any analysis (e.g. trending total medical PMPM by month) will be correct by default, without any changes made to the raw claims data.  Therefore, it's not usually necessary to identify and correct adjustments, reversals, or denials before calculating payment statistics.
+The current claim has $10 assigned to line 1 and $25 to line 2. A header-only total of $35 would not establish that allocation. Conversely, repeating the $35 header total on both lines and summing it would produce $70.
 
-**Utilization**
+The stable line identities matter. A replacement can remove a line, add a line, split a service, or renumber the bill. Line 2 on the replacement is not automatically the same service as line 2 on the original. As discussed in [Headers and Lines](header-line.qmd), a line number identifies an item within its parent record; it is not necessarily a permanent service identifier.
 
-However, the impact on utilization analytics is not as straightforward.  In the simple example above we noticed that the place of service code changed from 11 (office visit) to 20 (urgent care).  Place of service code is an important piece of information used to group claims into encounters.  Without taking into account that a reversal and adjustment was made for this claim, it looks like two place of service codes exist for the same visit, and we are unsure which code to use to assign an encounter type to the claim (i.e. should the claim be labeled an office visit or urgent care visit).  
+If a complete replacement drops line 2, selecting the newest record for each old line independently would preserve a line that no longer belongs to the claim. We must first resolve the claim version, then take the lines belonging to that version. A source that updates individual lines requires a different method.
 
-This has serious consequences for utilization analytics and also impacts payment analytics if we want to analyze payments by care setting.  For example, suppose we are interested in looking at spend across different care settings, e.g., acute inpatient, inpatient rehab, emergency department, urgent care, and office visit.  Without properly identifying and correcting claims adjustments and reversals we won’t be able to bucket spend or number of visits in the appropriate category.
+### A partial adjustment without a full reversal
 
+A payer can change only the difference between an earlier amount and a revised amount. Suppose a source supplies these signed changes:
+
+| Event | Billed movement | Allowed movement | Paid movement |
+| --- | ---: | ---: | ---: |
+| Original | $100 | $50 | $25 |
+| Incremental adjustment | $20 | $10 | $5 |
+| **Cumulative amount** | **$120** | **$60** | **$30** |
+
+The second row is a **delta**, not the new total. Keeping only its $5 paid amount would understate the cumulative payment of $30. A negative delta would reduce the corresponding balance; it would not necessarily cancel the service.
+
+Now imagine a different extract that reports the original paid balance of $25 and the revised paid balance of $30. Adding those two values gives $55, which is wrong for the current claim. In that extract, the correct operation is to select the documented current state. Subtracting the two observed states reveals a $5 change, but it does not recover any intermediate transactions omitted between snapshots.
+
+The column can be called `paid_amount` in either extract. Its name does not tell us whether to add it or replace it.
+
+## Establish the source contract
+
+The most useful first step is to ask the payer or data supplier to walk through real claim histories. A file layout tells us which fields exist. Worked examples tell us how the fields behave together.
+
+Request examples of an unchanged claim, a denied and resubmitted claim, a full reversal, a replacement, and a partial adjustment. Include a case with several lines and one in which a line disappears. For each, establish:
+
+- **Identity:** which fields distinguish deliveries, transactions, claim versions, and lines; which references connect related claims.
+- **Meaning:** whether each financial field is a movement or a replacement value, and how record types and adjudication statuses are represented.
+- **Order:** which sequence or timestamps establish effective ordering, including events processed on the same day.
+- **Scope:** whether an update replaces a whole claim or selected lines, and how deletions or voids are communicated.
+- **Delivery:** whether a file is a snapshot, a change feed, or a restatement of a historical window, and what its cutoff includes.
+
+Full versus incremental delivery is separate from movement versus replacement semantics. A full file can repeat the entire transaction history. An incremental file can contain new replacement states. Appending either without understanding its contract can create duplicates or incorrect balances.
+
+Keep the source sequence distinct from the paid date and the load timestamp. Two corrections may share a paid date. A delayed file may arrive after a newer adjudication. The first row we observe may already be an adjustment if the extract begins after the original claim. “First observed” is not the same as “original.”
+
+## Finding related records
+
+Three common identifier patterns are useful starting points. They describe how identifiers appear, not how money should be calculated. Any of them can coexist with transactions, replacement states, or incomplete history.
+
+### The source issues new claim IDs
+
+An original might be A200, its reversal A201, and its replacement A202. First look for an original-claim reference, an adjusted-claim reference, a payer control number, or a separate relationship file. New IDs are straightforward to connect when the source supplies a reliable link.
+
+When links are absent, look for **candidates** that describe the same patient and service. Useful evidence can include source, patient, provider role, service dates, procedure or revenue codes, modifiers, units, and compatible amounts. Equal-and-opposite payments can help identify a possible reversal pair. Then look for a related corrected submission, using processing order where the source makes that order meaningful.
+
+This is investigation, not proof. Two legitimate services can share a patient, date, code, and amount. One positive payment can match several negative records. A correction can change the very field we use to match it, such as place of service or service date. Requiring every field to agree misses those cases; allowing broad differences creates false matches.
+
+Do not turn missing dates into an arbitrary date and treat the resulting equality as evidence. Do not require matching line numbers across different claims unless their stability is documented. Examine the entire claim history, assess whether candidate links are one-to-one or ambiguous, and retain unresolved relationships for review. A low-confidence match should not quietly remove a patient's service.
+
+### The source reuses claim IDs
+
+With a stable claim ID, versions may differ by a source sequence, transaction identifier, record type, or status. The shared ID helps establish the relationship, but it does not tell us whether the newest row replaces the old amount or changes it by a delta.
+
+Repeated rows may also be duplicate deliveries rather than new versions. Profile the complete staged history before deciding which explanation applies. The following SQL uses an illustrative, connector-owned `staging.medical_claim_history` table. It summarizes payment-sign signals without assuming the amounts are additive.
+
+```sql
+select
+    data_source,
+    claim_id,
+    claim_line_number,
+    count(*) as observed_rows,
+    count(distinct paid_amount) as distinct_nonnull_paid_amounts,
+    sum(case when paid_amount > 0 then 1 else 0 end) as positive_rows,
+    sum(case when paid_amount = 0 then 1 else 0 end) as zero_rows,
+    sum(case when paid_amount < 0 then 1 else 0 end) as negative_rows,
+    sum(case when paid_amount is null then 1 else 0 end) as unknown_rows
+from staging.medical_claim_history
+group by data_source, claim_id, claim_line_number
+having count(*) > 1
+    or sum(case when paid_amount is null then 1 else 0 end) > 0
+order by data_source, claim_id, claim_line_number;
+```
+
+A group with two different paid amounts deserves attention, but a group with identical amounts can still contain a meaningful correction to a diagnosis, provider, or service date. The query is a starting point for inspection, not a rule to retain one row or discard the others. It also cannot discover relationships between different claim IDs by itself.
+
+### The source mixes patterns or encodes relationships in IDs
+
+Some feeds use a stable ID for certain adjustments and new IDs for others. Others append characters, as in `A1234`, `A12341`, and `A12342`. These patterns can suggest a family relationship, but unrelated identifiers can share the same prefix.
+
+Use a source-documented identifier format to extract a family key. Verify its behavior across claim types and historical periods, and retain the original identifier. Removing the final character from every ID or matching every longer prefix is not a general ADR method. Even a valid suffix relationship does not establish that a particular suffix means reversal, replacement, or effective order.
+
+## Turning history into analytical tables
+
+A useful model keeps the delivered evidence and makes its interpretation explicit. Raw staging preserves the original values, source identifiers, file identity, and receipt time. A normalized history records the verified links and source event meanings. The current view then resolves that history for a stated cutoff.
+
+Some sources supply a `final_claim_flag`. Establish its meaning, grain, and cutoff before using it. In a delta stream, the last event may be flagged as current while its amount still represents only a change. Selecting that row does not turn its $5 adjustment into the $30 cumulative payment from our earlier example.
+
+In **Tuva 1.0**, source-specific ADR work belongs in connector staging before publishing resolved Input Layer rows. The medical-claim Input Layer grain is `(claim_id, claim_line_number, data_source)`; different paid dates do not make repeated versions of that key valid final inputs. Tuva Core does not supply a universal payer-specific ADR policy. The [Tuva Claims ADR guide](https://thetuvaproject.com/guides/claims-adr) describes this boundary. Keep the financial history separately and check the contract for the Tuva version you use.
+
+The next two SQL examples illustrate different contracts. Their staging tables and fields are teaching examples, not built-in Tuva models. They use DuckDB SQL; adapt syntax and data types for your warehouse.
+
+### Accumulating a verified transaction ledger
+
+Suppose we have already established a complete opening history, eliminated repeated deliveries, linked related records, and mapped stable service-line identities. Every `paid_amount` in `staging.medical_claim_ledger` is a signed movement. `source_sequence` uniquely orders events within each source, claim family, and logical line.
+
+We can then calculate a running payment balance:
+
+```sql
+select
+    data_source,
+    claim_family_id,
+    service_line_id,
+    source_sequence,
+    paid_date,
+    paid_amount,
+    case
+        when count(*) over history = count(paid_amount) over history
+        then sum(paid_amount) over history
+        else null
+    end as cumulative_paid_amount
+from staging.medical_claim_ledger
+window history as (
+    partition by data_source, claim_family_id, service_line_id
+    order by source_sequence
+    rows between unbounded preceding and current row
+)
+order by data_source, claim_family_id, service_line_id, source_sequence;
+```
+
+The explicit row frame accumulates events in the verified order. The null check prevents an unknown movement from silently becoming zero: once an unknown amount enters the history, the running balance remains unknown until the missing information is resolved. A missing predecessor can still invalidate an apparently complete sum, so the opening-history assumption must be checked outside this calculation.
+
+This running balance does not select the current diagnosis, provider, or service category. Those attributes still need the source's replacement rules. Nor does the ordering field establish whether an event is an original, reversal, or adjustment; the source status fields provide that meaning.
+
+### Selecting a complete replacement claim
+
+For a different source, suppose each version is a complete claim state. `staging.medical_claim_versions` contains one record per complete version, with a `claim_version_id` unique within each data source, a source-defined `adjudication_sequence`, a receipt timestamp, and a non-null `is_void` flag derived from documented status rules. `staging.medical_claim_lines` holds the lines for each version.
+
+To reproduce the state known before April 1, 2026, select the latest available **claim version** and then join its lines:
+
+```sql
+with ranked_versions as (
+    select
+        data_source,
+        claim_family_id,
+        claim_version_id,
+        is_void,
+        row_number() over (
+            partition by data_source, claim_family_id
+            order by adjudication_sequence desc
+        ) as version_rank
+    from staging.medical_claim_versions
+    where received_at < timestamp '2026-04-01 00:00:00'
+)
+
+select
+    v.data_source,
+    v.claim_family_id,
+    v.claim_version_id,
+    l.claim_line_number,
+    l.paid_amount
+from ranked_versions v
+inner join staging.medical_claim_lines l
+    on v.data_source = l.data_source
+   and v.claim_version_id = l.claim_version_id
+where v.version_rank = 1
+  and v.is_void = false;
+```
+
+This requires a unique sequence within each claim family and complete version availability at the recorded receipt time. Interpret the cutoff in a documented time zone. A source with partial updates needs those updates assembled into a complete state first; the query does not perform that work.
+
+The order of operations matters. Ranking whole claims prevents a deleted line from surviving through an older version. Ranking before excluding voids prevents an older paid claim from being resurrected after a later void. The query does not discard denied or zero-paid states merely because of their amounts. Any further exclusions depend on the analysis.
+
+Keep the voided history even when the current service view has no row for it. A void explains the disposition of a billing record; it does not independently prove that no care occurred.
+
+## Pharmacy claims need their own rules
+
+Pharmacy data has the same distinction between a billing history and a current record, but its transactions and identifiers differ from medical claims. NCPDP billing, reversal, and rebill requests must be interpreted alongside their responses. A submitted reversal is not necessarily an accepted reversal.
+
+For example, the [CMS pharmacy payer sheet effective July 2026](https://www.cms.gov/files/document/glp-1-bridge-payer-sheet.pdf) uses NCPDP D.0 billing and rebill requests, B1 and B3, and reversal requests, B2. It separately defines response statuses, including paid and duplicate-of-paid. The example shows why a transaction code and its outcome are different fields; the payer sheet's program-specific requirements should not be generalized to other feeds.
+
+Suppose a pharmacy submits a billing transaction with a reported $40 payer amount and 30 days supply, then successfully reverses it. If the source delivers signed paid movements, $40 and −$40 net to zero. Counting the original row as a surviving prescription would still overstate fills and days supply. If a corrected bill follows, use the documented surviving product, quantity, days supply, and payment state.
+
+A reversal can reflect an uncollected prescription or a correction to billing; it does not have one universal clinical meaning. A paid billing record also does not prove pickup or ingestion. Do not derive medication adherence by simply counting positive financial transactions.
+
+Retain prescription or service reference numbers, fill numbers, pharmacy identifiers, transaction identifiers, and processing order where supplied. A prescription number alone may repeat across pharmacies or fills. Follow the pharmacy source's rules for linking reversal and rebill records, and distinguish legitimate refills or partial fills from corrected transactions. Medical claim frequency codes and medical line-number assumptions are not substitutes for that contract.
+
+## Reconcile the money and the history of care
+
+A correct grand total is necessary, but it is not enough. We need to explain the individual histories that produce it and the categories to which those histories contribute.
+
+For the financial view, compare payment activity with source control totals at the same grain and cutoff. On a complete, consistently defined ledger, opening balances plus movements should reconcile to closing balances. Missing predecessors, duplicate deliveries, unmatched reversals, and unknown amounts need explicit treatment.
+
+A remittance or bank-transfer total can also include adjustments outside a specific claim. [CMS's remittance guidance](https://www.cms.gov/medicare/coding-billing/electronic-billing/health-care-payment-remittance-advice) describes line, claim, and provider-level adjustments. A reconciliation that ignores provider-level recoveries or other adjustments may fail even when the claim-level arithmetic is correct.
+
+For the service view, trace the surviving claim and its lines. A replacement should not leave behind a removed diagnosis or service. A later void should not restore an earlier positive payment. Late-arriving corrections should update the appropriate service period while preserving our ability to reproduce an earlier cutoff.
+
+Consider a bill corrected from POS `11`, office, to POS `20`, urgent care. Those codes describe settings; an encounter grouper also needs evidence about the service. If both claim versions survive, one visit may appear in two categories. Even if the signed payments happen to net correctly in total, spending by setting can be wrong when an obsolete category remains attached to an adjustment. CMS's [place-of-service definitions](https://www.cms.gov/medicare/coding-billing/place-of-service-codes/code-sets) establish the distinction between the settings.
+
+The same problem reaches further than utilization. A removed diagnosis can change a condition cohort or risk score. A corrected service date can move spending between member months. A revised rendering provider can change attribution. Those downstream results should be built from the intended adjudicated view, with the cutoff and inclusion rules carried into the analysis.
+
+ADR is therefore part of defining the dataset. Preserve the billing history, resolve the current state using the source's rules, and reconcile both. With that foundation in place, we can address the next question: [how incurred dates, paid dates, and runout affect the completeness of a reporting period](incurred-paid-runout.qmd).

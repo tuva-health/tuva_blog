@@ -1,27 +1,221 @@
 ---
 id: ed-visits
-title: "ED Visits"
-description: Methods for doing emergency department data analysis.
+title: "Emergency Department Analytics"
+description: "Define ED visits, measure population use and spending, and interpret NYU emergency department classifications."
 ---
 
-In this section we describe methods for analyzing emergency department visits.  Once you're familiar with this basic approach you should be able to develop a wide variety of different analyses for ED visits.
+Emergency department analytics starts with a simple question: how often do people use the emergency department? Answering it well takes more than counting claims. We need to construct visits, connect them to the population we can observe, and understand what happened during those visits.
 
-If your data is in the Tuva data model you can follow along and execute the [code](https://github.com/tuva-health/analytics/tree/main/emergency_department_analytics) on your data.
+The next question is usually why. Which conditions account for the visits? Where are people receiving care? Could better access to care, or better management of an existing condition, change the pattern?
 
-## Part 1: Identifying ED Visits
+In this chapter, we'll build the utilization and spending measures that support those questions, then use the NYU ED algorithm to describe the mix of visits. We'll also work through an important distinction: assigning a visit to one category produces a different analysis from retaining the algorithm's probabilities.
 
-This video explains how to identify ED visits using the Tuva data model.
+## Decide what counts as an ED visit
 
-<iframe width="640" height="400" src="https://www.youtube.com/embed/60cYouBpnhU?si=ofts919O6ClS4XOF" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+An ED visit can generate a facility claim, an emergency physician's professional claim, and separate bills for imaging, laboratory work, or other services. Counting each claim counts billing records. We want the encounter those records describe.
 
-## Part 2: Basic ED Analytics
+A grouper uses evidence such as institutional revenue codes, professional procedure and place-of-service information, dates, and provider identity to identify and combine services. Keep the original records linked to the encounter so that a reviewer can understand why they were combined. The [service categories](../claims-groupers-and-algos/service-categories.qmd) and [encounters](../claims-groupers-and-algos/encounters.qmd) chapters explain these two steps.
 
-This video and the diagram below explain examples of basic ED analytics.  The SQL code to create all of the tables described in the video and diagram below is located [here](https://github.com/tuva-health/analytics/blob/main/emergency_department_analytics/basic_ed_analytics_and_pkpy_calculations.sql).
+Counting distinct person-and-date combinations is a useful check, but it is not a complete visit definition. A person can have two visits on the same day. A single visit can cross midnight. Facility and professional bills can arrive at different times. Resolve these cases before calculating a rate.
 
-<iframe width="640" height="400" src="https://www.youtube.com/embed/mJij7EeXsNY?si=pTfxI1N7juF9SKUS" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+Also decide whether the analysis includes ED visits followed by observation, hospital admission, or transfer. An encounter grouper may incorporate the ED services into the resulting inpatient encounter. Selecting only encounters labeled “emergency department” can therefore answer a narrower question than counting every hospital episode that began in the ED. Review the grouper's treatment of these pathways and name the population of visits accordingly.
 
-<iframe width="640" height="400" src="https://miro.com/app/live-embed/uXjVJMV9qtg=/?embedMode=view_only_without_ui&moveToViewport=-2233,-1458,8919,4428&embedId=733535922536" frameborder="0" scrolling="no" allow="fullscreen; clipboard-read; clipboard-write" allowfullscreen></iframe>
+The same boundary matters for spending. ED facility payment, facility plus professional ED payment, and the cost of a hospitalization that began in the ED are different measures. The presence of an ED revenue code on an inpatient bill does not make the full inpatient payment an ED-only cost.
 
-This video demonstrates how to run these example analytics in a notebook and shows results from Medicare LDS claims data.
+## Measure use and spending together
 
-<iframe width="640" height="400" src="https://www.youtube.com/embed/LUf3dsr8ttc?si=xwWUB3WwqxhOPNqv" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+Suppose a population contributes 6,000 medical member months during a six-month study and has 250 defined ED visits. Those member months represent 500 member years of exposure:
+
+$$
+\text{ED visits per 1,000 member years}
+= \frac{250 \times 12 \times 1,000}{6,000}
+= 500
+$$
+
+This measure is often called **PKPY**, or per thousand per year. It annualizes observed utilization; it does not forecast next year's visits or remove seasonality from a short observation period.
+
+Include people with no ED visits in the enrollment denominator. Include visits occurring during the medical coverage represented by that denominator. Coverage somewhere in a calendar month does not establish coverage on the visit date. The [member months](member-months.qmd) chapter describes how the enrollment rule determines the exposure being measured.
+
+Now suppose those visits account for $300,000 in consistently defined, complete allowed amounts. We can connect utilization to spending:
+
+| Metric | Calculation | Result |
+|---|---|---:|
+| ED visits per 1,000 member years | 250 × 12 × 1,000 ÷ 6,000 | 500 |
+| Allowed amount per ED visit | $300,000 ÷ 250 | $1,200 |
+| ED allowed amount PMPM | $300,000 ÷ 6,000 | $50 |
+
+These measures reconcile:
+
+$$
+\text{ED cost PMPM}
+= \frac{\text{ED visits per 1,000 member years}
+\times \text{Cost per ED visit}}{12,000}
+$$
+
+Use the same encounters, financial measure, and cost boundary in every term. With no visits, report zero utilization; cost per visit is undefined. Paid amounts can be used instead of allowed amounts, but the result then describes payer spending under that payment definition. An average calculated only from visits with known amounts needs that qualification. Missing payment data is not zero spending.
+
+The number of people using the ED adds another perspective. If 180 people account for the 250 visits, repeat use explains the difference. If 1,200 people were enrolled at some point in the study, 15% had an observed ED visit. That percentage does not adjust for their different lengths of enrollment. Someone observed for one month had less opportunity to appear than someone observed for all six.
+
+## Understand the NYU classification
+
+Volume and cost tell us how much ED care occurred. Classification helps describe the kinds of visits behind those totals.
+
+The NYU algorithm maps a visit's primary discharge diagnosis to a set of categories. It originated with physician review of nearly 6,000 ED records, including clinical information unavailable in a typical claim. The resulting classifications were translated into diagnosis-level probability weights. [NYU's methodology](https://wagner.nyu.edu/faculty/billings/nyued-background) explains that development process.
+
+### The four medical categories
+
+The main categories distinguish how soon care was needed, whether ED resources were required, and whether earlier ambulatory care might have prevented the emergency.
+
+| Category | Meaning in the original classification |
+|---|---|
+| Non-emergent | Care was not required within 12 hours. |
+| Emergent, primary care treatable | Care was needed within 12 hours, but a primary care setting could provide it safely, without continuous observation or ED-specific resources. |
+| Emergent, ED needed, potentially preventable | ED care was necessary at the time. Timely, effective ambulatory care earlier in the illness might have prevented the emergency. |
+| Emergent, ED needed, not preventable | ED care was necessary, and earlier ambulatory care could not have prevented the condition. |
+
+These are the definitions used to construct the algorithm, not instructions for deciding where a person should seek care today. In particular, “potentially preventable” describes an opportunity earlier in the illness. It does not mean that someone who arrived with an emergency should have been treated elsewhere.
+
+### Special categories and unclassified visits
+
+The algorithm also separates four groups from the medical categories: **injury**, **mental health**, **alcohol-related**, and **drug-related visits excluding alcohol**. These categories describe the nature of the diagnosis; they do not assign a level of urgency within each group. The method also leaves diagnoses it cannot categorize unclassified. [Johnston and colleagues' account of the algorithm and its update](https://pmc.ncbi.nlm.nih.gov/articles/PMC5517669/) describes this structure.
+
+Keep these groups visible. An injury visit is not a non-emergent visit simply because it falls outside the four medical categories. An unclassified visit is not evidence of either high or low urgency.
+
+A missing result also deserves investigation. The diagnosis may be absent, recorded in an unexpected format or coding system, or valid but absent from the selected lookup. Those are different explanations. Report the percentage without a usable classification, then inspect the diagnoses behind it before interpreting changes in the classified share.
+
+### A probability is not an individual verdict
+
+A discharge diagnosis can describe visits with different clinical presentations. The weights retain some of that variation. A non-emergent weight of 0.60 means the algorithm allocates 60% of that diagnosis's contribution to the non-emergent category. It does not establish that a particular patient's visit was unnecessary.
+
+The distinction matters because the diagnosis is recorded after evaluation. The patient made the decision to seek care before knowing the result. Validation research supports studying patterns across groups while identifying substantial limits for decisions about individual visits. The algorithm does not establish whether a particular person could safely have waited, and it should not determine triage or reimbursement. [Ballard and colleagues](https://pmc.ncbi.nlm.nih.gov/articles/PMC3881233/) discuss these limits alongside their validation findings.
+
+## Aggregate probabilities before interpreting them
+
+Consider an illustrative cohort of 200 visits. One hundred have diagnosis A, 50 have diagnosis B, 25 are assigned to injury, and 25 have no usable classification. The following weights are invented for the example; they are not values for actual diagnosis codes.
+
+| Diagnosis | Visits | Non-emergent | Primary care treatable | ED needed, preventable | ED needed, not preventable |
+|---|---:|---:|---:|---:|---:|
+| A | 100 | 0.60 | 0.30 | 0.10 | 0.00 |
+| B | 50 | 0.10 | 0.20 | 0.30 | 0.40 |
+
+To estimate the contribution to a category, multiply each diagnosis's visit count by its weight and add the results. The expected non-emergent count is:
+
+$$
+100 \times 0.60 + 50 \times 0.10 = 65
+$$
+
+The four expected counts are 65, 40, 25, and 20. They total 150, the number of visits represented by those weights. Adding the 25 injury visits and 25 visits without classification reconciles to the full cohort of 200.
+
+The denominator determines what the percentage means. The expected non-emergent share is 32.5% of all 200 visits, or 43.3% of the 150 visits represented in the four-category calculation. Both calculations are possible; they answer different questions. A report should identify the denominator and show the excluded groups.
+
+Now assign every visit to whichever category has the largest weight. All 100 diagnosis A visits become non-emergent. All 50 diagnosis B visits become ED needed, not preventable. The counts are now 100, zero, zero, and 50. Nothing about the underlying visits changed. We changed how we summarized the probabilities.
+
+This is why a report of **resolved categories** must be distinguished from a **probability-weighted distribution**. The former assigns one label to each visit. The latter sums the weights and produces expected counts, which may be fractional. Neither calculation identifies particular people whose care was avoidable.
+
+## Work with Tuva's ED classification mart
+
+Tuva's [NYU ED Classification documentation](https://thetuvaproject.com/data-marts/ed-classification) provides the implementation and additional query examples. In package version 1.0.0, `ed_classification.summary` starts with encounters whose type is `emergency department`. Its intended grain is one row per `encounter_id` and `data_source`. The summary includes diagnosis, patient and facility context, amounts, and a month derived from `encounter_end_date`. Encounters without a matching classification remain in the output with a null classification. These details are visible in the [versioned summary model](https://github.com/tuva-health/nyu_ed_classification/blob/4cb5a09e3b76b4cd9732160f0fd7eff778095bbe/models/ed_classification/final/ed_classification__summary.sql).
+
+The published category is the one with the highest lookup probability. If probabilities tie, the SQL's category comparison order breaks the tie; the display order is a separate field. The summary does not publish the probability distribution. Reproducing a weighted analysis requires the underlying diagnosis weights, with the lookup version and join logic documented. The [classification model](https://github.com/tuva-health/nyu_ed_classification/blob/4cb5a09e3b76b4cd9732160f0fd7eff778095bbe/models/ed_classification/intermediate/ed_classification__int_filter_encounter_with_classification.sql) shows the resolution rule.
+
+The category dictionary contains an unclassified label, but unmatched diagnoses normally reach the summary as null. Counting only the named unclassified category will miss those visits. Keep null results visible and distinguish them from a returned label when investigating data quality.
+
+### Summarize categories and monthly trends
+
+The following example counts claims-derived encounters in an illustrative calendar year. It uses the default schema names; adapt them to your installation. Joining back to `core.encounter` makes the claims restriction explicit because the summary's encounter-type filter does not itself impose that restriction.
+
+```sql
+with visits as (
+    select s.*
+    from ed_classification.summary as s
+    inner join core.encounter as e
+        on s.encounter_id = e.encounter_id
+        and s.data_source = e.data_source
+    where e.encounter_source_type = 'claim'
+        and s.encounter_end_date >= cast('2025-01-01' as date)
+        and s.encounter_end_date < cast('2026-01-01' as date)
+)
+select
+    data_source,
+    year_month,
+    coalesce(ed_classification_description, 'No classification returned')
+        as ed_category,
+    count(*) as ed_visits,
+    count(paid_amount) as visits_with_paid_amount,
+    sum(paid_amount) as observed_paid_amount,
+    avg(paid_amount) as mean_paid_among_visits_with_amount
+from visits
+group by
+    data_source,
+    year_month,
+    coalesce(ed_classification_description, 'No classification returned')
+order by data_source, year_month, ed_category
+```
+
+This is a visit summary, not yet a population utilization rate. It shows whether a change is concentrated in a category and whether missing amounts limit the spending comparison. Removing `year_month` from the selection, grouping, and ordering gives a period summary. Preserve the same source and visit scope when comparing the two. The date filter also excludes visits with no encounter end date; reconcile those records before interpreting the monthly totals.
+
+`AVG` ignores null amounts. Dividing the observed payment total by every visit would instead treat visits with missing amounts as if they cost zero. Neither approach recovers the missing spending. Even a non-null encounter total can be incomplete if an upstream process summed only the claim components it received, so reconcile the encounter's costs to its underlying claims.
+
+### Add the enrollment denominator
+
+For rates, first prepare a visit cohort and an enrollment cohort that describe the same population. Restrict visits to medical coverage on the chosen encounter date, deduplicate overlapping eligibility, and retain enrolled people with no visits. For the example below, `analysis_ed_visit` is a prepared table with one eligible visit per encounter and source, assigned to its end-date month. `analysis_member_month` contains one medical member month per person, source, and month for the same study population and period. These are analysis tables you create, not additional Tuva package outputs.
+
+```sql
+with exposure as (
+    select data_source, year_month, count(*) as member_months
+    from analysis_member_month
+    group by data_source, year_month
+), utilization as (
+    select data_source, year_month, count(*) as ed_visits
+    from analysis_ed_visit
+    group by data_source, year_month
+)
+select
+    m.data_source,
+    m.year_month,
+    m.member_months,
+    coalesce(v.ed_visits, 0) as ed_visits,
+    12000.0 * coalesce(v.ed_visits, 0)
+        / nullif(m.member_months, 0) as ed_visits_pkpy
+from exposure as m
+left join utilization as v
+    on m.data_source = v.data_source
+    and m.year_month = v.year_month
+order by m.data_source, m.year_month
+```
+
+Aggregate exposure and visits separately before joining them. Joining raw member months to individual visits would duplicate the denominator for people with repeated visits. Starting from enrollment retains zero-visit months. Separately reconcile any visit months without exposure; a left join cannot tell you what it left out.
+
+For a category-specific rate, use that category's visit count over the full eligible population's exposure. Dividing by the member months of only people who used the ED answers a different question. To show zeroes for every category in every month, construct the required month-and-category combinations before joining the visit counts.
+
+### Compare facilities and clinical conditions
+
+The same visit summary can be grouped by `facility_npi`, with facility names added for readability. Start with counts, category mix, known payment totals, and payment completeness. A facility with more visits may serve a larger population or a different mix of patients. Its volume is not a population utilization rate, and a lower average payment alone does not establish better performance. Provider directory geography also needs validation before it is treated as the precise service location.
+
+For population management, the hospital where a visit occurred and the clinician to whom a member is attributed are separate dimensions. Apply the relevant period's [attribution rule](../claims-groupers-and-algos/attribution.qmd) to the population before comparing attributed groups.
+
+Diagnosis groupers add clinical detail within the NYU categories. For example, CCSR can show which clinical conditions account for visits assigned to a given ED category. Use the encounter's selected primary diagnosis when the question concerns that diagnosis. If instead you use all claim-level primary diagnoses attached to the encounter, describe that broader scope.
+
+[AHRQ's CCSR documentation](https://hcup-us.ahrq.gov/toolssoftware/ccsr/dxccsr.jsp) explains that one diagnosis can map to multiple categories. Filtering a diagnosis table to `diagnosis_rank = 1` does not make the categories exclusive, and `SELECT DISTINCT` removes repeated identical rows without removing legitimate multiple mappings. For an overlapping analysis, count each encounter once within each category and state that the category totals can exceed the visit total. For categories that must reconcile, select one category per encounter using a documented rule, such as the applicable CCSR outpatient default assignment for the encounter's primary diagnosis. Verify that the mapping version supplies that assignment. Do not replicate a visit's full payment across overlapping categories and then add those amounts as though they were separate spending.
+
+## Interpret opportunities and changes carefully
+
+Analysts sometimes combine non-emergent, primary care treatable, and ED needed but potentially preventable categories into a broader opportunity measure. Define that combination explicitly and preserve the components. They describe different possibilities: care that could wait, urgent care requiring fewer resources, and an emergency that earlier care might have prevented.
+
+A high value can help choose where to investigate access, continuity, or management of chronic illness. It does not show which visits could actually have been avoided in the local care system. Availability of alternatives matters. Claims generally do not tell us whether an appointment was available, a clinician advised ED evaluation, or the patient's symptoms changed after normal office hours.
+
+Likewise, the paid amount attached to these visits is not an estimate of recoverable savings. An intervention may affect only some visits, require additional outpatient services, and have its own costs. Estimating its effect requires a comparison that addresses population changes and other explanations for the observed result.
+
+Before interpreting a trend, check the method as well as the population. The Johnston update published in 2017 expanded diagnosis-code coverage; it did not re-estimate the original clinical relationships from a contemporary patient sample. Its authors explicitly distinguish broader code coverage from improved validity. A software release date therefore does not tell us when the underlying clinical model was developed.
+
+Record the encounter-grouper version, classification method, package and lookup versions, coding system, study dates, and claims as-of date. Keep these consistent across comparisons, or rerun both periods under the same method. Track missing diagnoses and unmatched codes over time. An increase in unclassified visits can change the apparent distribution even when the classified visits themselves have not changed.
+
+Then examine where the change occurred. Compare equivalent seasons and similar [claims maturity](../data-sources/claims-data/incurred-paid-runout.qmd). Separate changes in visits per member year from changes in cost per visit. Look at repeat use, disposition, facilities, and clinical conditions. A change concentrated in one source or facility calls for a different investigation from a change across the whole population. The classification helps organize that investigation; the explanation comes from testing what else changed.
+
+## Video walkthroughs
+
+These Tuva videos show how to identify ED encounters and summarize visit counts. The software examples reflect the version used when recorded; use the current documentation when adapting them.
+
+<iframe class="video" src="https://www.youtube.com/embed/60cYouBpnhU" title="ED Analytics Series: Identifying ED Visits in The Tuva Data Model" loading="lazy" allowfullscreen></iframe>
+
+<iframe class="video" src="https://www.youtube.com/embed/mJij7EeXsNY" title="ED Analytics Series: Queries used to count ED Visits" loading="lazy" allowfullscreen></iframe>

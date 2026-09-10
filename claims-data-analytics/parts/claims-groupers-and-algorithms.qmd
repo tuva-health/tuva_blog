@@ -1,0 +1,15 @@
+# Part 2: Claims Groupers & Algorithms {.unnumbered}
+
+::: {.part-intro}
+Claims record billing activity. Analytics usually needs people, months of coverage, categories of care, and encounters.
+:::
+
+In this part, we'll build those concepts from the source data. A grouper applies a definition to one or more records so that we can analyze something the source file does not state directly. Some groupers classify a claim line. Others assemble many claims into a visit or assign a person to a provider.
+
+Consider the hospital visit from Part 1. We might want to know whether it was an acute inpatient stay, which professional services belong with it, how much it cost, and which population should be used when calculating an admission rate. Each question needs a different piece of logic. One classification cannot do all of that work.
+
+We begin with [member months](../analytics/member-months.qmd), which translate enrollment into measurable exposure. We then discuss [provider attribution](../claims-groupers-and-algos/attribution.qmd), [service category groupers](../claims-groupers-and-algos/service-categories.qmd), and [encounter grouping](../claims-groupers-and-algos/encounters.qmd).
+
+Throughout these chapters, we'll distinguish the grain of the input from the grain of the output. We will also keep the source records connected to the concepts we create. When someone asks why a claim was classified as outpatient surgery or why two bills became one encounter, we should be able to show them.
+
+A useful grouper has a clear purpose, a reproducible definition, and behavior we can explain on difficult cases. Once those pieces are in place, downstream analyses can reuse the result with much less room for disagreement.

@@ -1,15 +1,57 @@
----
-title: "Claims Data Analytics"
----
+# Welcome {.unnumbered}
 
-# Claims Data Analytics
+::: {.book-intro}
+This book is about understanding healthcare claims data and learning how to turn it into useful analysis.
+:::
 
-Welcome to the Tuva Project's Claims Data Analytics book.
+Claims data lets us ask important questions about healthcare. What care are people receiving? How much does it cost? Where does that cost come from? How do patterns of care differ across providers, populations, and time?
 
-Becoming a skilled healthcare data and analytics practitioner requires a tremendous amount of domain-specific knowledge, usually gained over years of experience. The goal of the Knowledge Base is to dramatically accelerate that journey, helping anyone become a competent healthcare data analyst in as little as six weeks.
+But there is a lot of work between receiving a claims file and answering any of those questions well. One hospital stay can generate dozens of claims. A payment can be reversed months after it first appears. A person with no claims may still belong in the population you are measuring. Two analysts can start with the same data, write perfectly valid SQL, and arrive at different answers because they made different decisions about these details.
 
-### Learn
-Use the Knowledge Base as a structured training program—work through the readings, videos, and exercises start-to-finish. Or, dip in to refresh on specific topics when you need them. Every new Tuva team member completes the full Knowledge Base as part of onboarding.
+We built this book to make that knowledge easier to learn and easier to share. Our goal is to explain how claims work, how to build the concepts that analysts actually need, and how to recognize the assumptions that change an answer. We want you to understand your results well enough to explain them to someone else.
 
-### Contribute
-As you work through the content, you may find areas where your expertise goes deeper than what’s written. Please share it! Contributing is simple—just click the “Edit this page” button at the bottom of any page.
+## Who this book is for
+
+If you work with healthcare data, this book is for you. You might be a data analyst opening your first claims file, an engineer building a data platform, or a medical economics practitioner trying to make an analysis more reliable. You might understand databases well and know very little about healthcare, or know healthcare well and be learning to work with the data.
+
+You don't need to be an expert in medical billing to begin. We introduce the vocabulary as we use it. Familiarity with tables, joins, and basic aggregation will help with the examples. Where we show SQL, we explain the shape of the input and the question the query answers.
+
+The focus is U.S. healthcare claims and the eligibility and provider data that make claims interpretable. We concentrate on medical claims, then follow them into common analyses of cost, utilization, quality, and risk. The underlying habits—understanding how a record was created, choosing the right unit of analysis, and checking what is missing—apply much more broadly.
+
+## How the book fits together
+
+The book follows the work in the order it usually happens.
+
+[**Part 1: Healthcare Data Sources**](parts/healthcare-data-sources.qmd) explains the raw material. We start with how a claim is created, then work through coverage, claim headers and lines, important fields, adjustments, claims lag, providers, and code sets. These chapters give you the vocabulary to read a source file and the questions to ask its owner.
+
+[**Part 2: Claims Groupers & Algorithms**](parts/claims-groupers-and-algorithms.qmd) turns those records into analytic concepts. We build member months, attribute people to providers, classify services, and assemble encounters. This is where a collection of billing records starts to become a description of healthcare delivery.
+
+[**Part 3: Analytics**](parts/analytics.qmd) uses those concepts to answer questions. We examine PMPM cost, emergency department use, hospital readmissions, quality measures, and risk adjustment. Each chapter connects the calculation to the decisions needed to interpret it.
+
+If you're new to claims, read Part 1 in order. If you're investigating a specific problem, use the contents or search to go directly to a chapter. Follow the links back to earlier concepts when you need them. The book is meant to work both as a course of study and as a reference beside your editor.
+
+## How we approach the work
+
+We think the fastest way to become good at claims analytics is to connect the data to the process that created it. A bill type, an adjustment indicator, or an enrollment termination date makes much more sense when you understand what someone was trying to do when they recorded it.
+
+That is why we spend time on small examples. If you can work through one person's coverage, one hospital stay, or one corrected claim by hand, you have something concrete to compare your code against. A query that runs is a start. A query whose result you can reconcile is much more useful.
+
+We also make definitions explicit. When we say “cost,” we identify the amount being measured. When we say “visit,” we explain what counts as one visit. When we report a rate, we identify the people or events in its denominator. These choices are part of the analysis itself.
+
+You will see places where the right answer depends on the source or the purpose of the analysis. A payer's final claims extract behaves differently from its transaction history. A descriptive readmission rate answers a different question from a specified reporting measure. We explain those differences so you can make a deliberate choice and document it.
+
+## The book and the Tuva Project
+
+[The Tuva Project](https://thetuvaproject.com/) develops open-source tools for transforming healthcare data into a common model and building reusable analytics on top of it. The book shares the domain knowledge behind that work.
+
+You can use what you learn here with Tuva or with your own data platform. The explanations focus on the concepts; the [Tuva documentation](https://thetuvaproject.com/) describes the current software, tables, configuration, and installation steps. Links to implementations help connect the two, but a conceptual example in this book is not a promise about every software version or source dataset.
+
+All patient records and numeric examples created for this book are illustrative. When a chapter describes a formal measure or payment model, it points to the organization that maintains the specification. Use the appropriate program and measurement-year version when implementing it.
+
+## Help us make it better
+
+Healthcare data knowledge is spread across a lot of people and organizations. A useful book should benefit from that experience.
+
+If an explanation is unclear, an example is wrong, or an important source behavior is missing, please tell us. Use **Report an issue** to describe the problem or **Edit this page** to propose a change. The most useful contributions show a specific example, explain why it matters, and point to a source when one is available. Use synthetic examples rather than patient records or confidential data.
+
+We want this to be a place where someone can learn the fundamentals carefully, return when a difficult problem comes up, and leave the next reader with a clearer explanation than the one they found.

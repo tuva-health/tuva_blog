@@ -3,97 +3,105 @@ id: attribution
 title: "Member Attribution"
 ---
 
-Provider attribution is the means of attributing individual patients to a provider, often times a primary care 
-provider, using medical claims or electronic medical record data.  There are many reasons why one would like attribute patients to providers, from evaluating performance to understanding healthcare outcomes.
+Before we can compare providers, we need to decide which patients belong in each provider's population. That sounds straightforward until a patient sees two primary care clinicians, receives most of their care from a specialist, or goes a year without a visit.
 
-There is not "one way" to approach provider attribution, and there are many valid approaches to how to go about 
-attributing patients to providers. In this section, we discuss provider attribution at a high-level and look 
-at one of the attribution methods used by the Center of Medicare and Medicaid services (CMS) in the context of their 
-Next Gen ACO models, Direct Contracting Entity models, and ACO REACH programs (the same attribution model being used in all these programs).
+**Attribution** is the method we use to assign a patient to a clinician, practice, or organization for a particular purpose and period. In this chapter, we'll work through the decisions behind a claims-based attribution method, build a small example, and discuss how to interpret the resulting patient panel.
 
-Before getting started, here are some good questions to consider related to provider attribution:
+The calculation is usually the easy part. The harder work is deciding what relationship we want the calculation to represent.
 
-- How do you determine if a provider is a primary care provider?
-- Should a blood draw or other lab test count in the attribution process?
-- If a patient doesn't visit a provider in a long time, should they be attributed to a provider?  How long is too long?
-- How do you handle if a patient is seeing multiple providers in a short period of time?
-- What data fields are available to you from medical claims data that should be used in provider attribution?
+## Start with the purpose
 
-## CMS Attribution Model
+For a care management program, we might want the clinician most likely to help a patient today. For a performance report, we might want the practice that provided most of the patient's primary care during the measurement year. For a payment arrangement, we need the attribution method specified in the contract.
 
-This example will use a single attribution model from some of CMS's CMMI programs. Full details about this attribution model can be found [here](https://www.cms.gov/priorities/innovation/media/document/dc-financial-op-guide-overview) in "Appendix B".  This attribution model from CMS uses exclusively Medicare claims data to attribute Medicare patients to providers. 
+Those purposes can produce different answers for the same patient. An operational panel may update every month as patients establish new relationships. A financial performance population may be fixed for a year or finalized after that year ends.
 
-Specific data used from the claims data are:
+It helps to separate three concepts:
 
-1.	**Rendering Provider NPI:** Used to determine if provider is a primary care provider by looking at the provider's specialty
-2.	**HCPCS Codes:** Used to determine if service is a primary care service (looking for E&M codes)
-3.	**Place of Service Codes:** Used to determine if service is primary care service (looking for office visit care setting)
-4.	**Date of Service:** Used for timing
-5.	**Claim Allowed Amounts:** Used for weighting
+| Concept | What it tells us |
+|---|---|
+| Insurance enrollment | Which plan covers the patient during a period |
+| Provider attribution | Which provider or organization is assigned responsibility under a defined method |
+| Observed care | Which providers actually delivered the services in our data |
 
-Other sources of data are used as well for attribution in this model:
+An attributed patient can receive care outside the attributed practice. A patient with no qualifying visits may remain enrolled in a plan but unattributed. Attribution to an accountable care organization (ACO) does not mean that the ACO is the patient's insurer.
 
-1.	**[NPPES](https://npiregistry.cms.hhs.gov/search):** Used to determine if a provider is a primary care provider via the provider’s primary care taxonomy
-2.	**[Taxonomy Crosswalk](https://data.cms.gov/provider-characteristics/medicare-provider-supplier-enrollment/medicare-provider-and-supplier-taxonomy-crosswalk) Data:** Crosswalks Medicare specialty code to provider taxonomy code
+If a payer supplies an official attribution file, preserve it as a distinct source. A locally calculated assignment can help explain or anticipate that file, but matching some of its rules does not make the local result official.
 
-The NPPES and Taxonomy data is cleaned up and organized in the Tuva Project in the terminology.provider table.
+## Define the relationship
 
-The attribution model CMS uses to attribute patients to providers is used in the context of primary care. First CMS only looks at a subset of providers it deems as "primary care." Then for a given patient, the attribution model looks at medical claims data for this subset of primary care providers and looks at which provider that patient has seen the most, with some weighting applied to give preference to more recently seen providers. Let’s walk through
-an example patient.
+A reproducible attribution method answers five questions: who is eligible, which providers qualify, which services count, what period we observe, and how we select a winner.
 
-![Example Patient Overview](/img/provider_attribution/provider_attribution_overview.drawio.svg)
+### Which patients are eligible?
 
-Below we describe the steps in more detail.
+Begin with the intended population and its enrollment requirements. If we are assigning a primary care panel for a health plan, that might mean members with medical coverage during the reporting month. A specific payment program may impose additional eligibility conditions.
 
-1. **Pull all medical claims data for a patient (professional claims only).**
+Keep patients without qualifying care in the output with an explicit unassigned status. Otherwise, the apparent population shrinks to people who used care, and a report labeled “all members” silently becomes a report about patients with visits.
 
-2. **Filter the medical claims data based on the rendering provider NPI and crosswalks to filter to just primary 
-care providers.** Based on the rendering provider NPI on the claim, lookup that provider's taxonomy on the [NPI
-Registry Database](https://npiregistry.cms.hhs.gov/search).
+### Which providers qualify?
 
-![primary_care_specialty_codes](/img/provider_attribution/primary_care_specialty_codes.png)
+Decide whether the assignment is to an individual clinician, a practice, or a larger organization. The rendering National Provider Identifier (NPI), billing NPI, tax identification number, and organization identifier describe different roles or organizational levels. They are not interchangeable, but they do not necessarily identify different entities: the same clinician can be both the rendering and billing provider.
 
-Here are the primary care specialty codes specified in this attribution model.
+A clinician-level method needs a rule for which clinicians qualify as primary care providers. Provider taxonomy can help, but it is not a complete account of the clinician's work. NPPES taxonomy information is selected by the provider, and the NPI itself does not certify specialty or credentials. The [CMS taxonomy crosswalk methodology](https://data.cms.gov/sites/default/files/2020-07/Medicare%20Provider%20and%20Supplier%20Taxonomy%20Crosswalk%20Methodology_0.pdf) explains the relationship between these classifications.
 
-![primary_care_specialty_code_taxonomy_crosswalk](/img/provider_attribution/primary_care_specialty_code_taxonomy_crosswalk.png)
+Nurse practitioners and physician assistants require particular care. A broad taxonomy may not distinguish work in a primary care practice from work in a specialty clinic. A maintained provider roster can add useful information when available. The method should also explain how it handles services billed under another clinician's identifier.
 
-They need to be taken in context of the crosswalk to get from specialty code to taxonomy code. 
+For practice attribution, use the claim's billing context and a clinician-to-practice mapping for the relevant dates before aggregating services. A clinician can work through more than one practice, so assigning every service to a single current affiliation can put care in the wrong panel. Two clinicians in the same practice should contribute to one practice total if the practice is the intended unit of responsibility.
 
-3. **Filter out any claims that are not in the PQEM procedure code set provided.**
+### Which services count?
 
-![primary_care_procedure_codes](/img/provider_attribution/primary_care_procedure_codes.png)
+For primary care attribution, we generally want evidence of a primary care relationship. A laboratory test ordered by a clinician is weaker evidence of that relationship than a qualifying evaluation or management service.
 
-Here's a subset of some of the procedure codes that are considered primary care services.  The full list can be found on page 40 of [this](https://www.cms.gov/priorities/innovation/media/document/dc-financial-op-guide-overview)
-pdf. Some have a place of service code pre-requisite to be considered valid.
+The service definition usually combines procedure codes with provider eligibility and, where appropriate, place of service. It may include office visits, selected preventive services, care management, home visits, or telehealth. The exact list depends on the method. “All professional claims” and “all services performed by a primary care provider” are both broader definitions than “qualifying primary care services.”
 
-4. **Filter out claims that do not meet the date range criteria for the alignment period.**
+Maintain the code list as a dated specification. New services and payment policies can change which claims qualify. For example, the Medicare Shared Savings Program expanded its primary care service definition for performance year 2025. That change belongs to that program and year; it is not a universal primary care definition. See the [CMS 2025 Shared Savings Program rule summary](https://www.cms.gov/newsroom/fact-sheets/calendar-year-cy-2025-medicare-physician-fee-schedule-final-rule-cms-1807-f-medicare-shared-savings).
 
-5. **Apply weighting to allowed amounts and sum by provider. Claims in the earlier alignment period should be weighted by 1/3, and claims in the more recent alignment period should be weighted 2/3.**
+### What period do we observe?
 
-![example_alignment_periods](/img/provider_attribution/alignment_year_date_ranges.png)
+A longer lookback can identify relationships for patients who use care infrequently. It can also preserve an old relationship after a patient changes providers. A shorter window responds more quickly but leaves more people unassigned.
 
-6. **The provider with the most weighted dollars gets the patient attributed.  In the case of a tie, choose the provider with the more recent claim.**
+Distinguish the **service period** from the **data cutoff**. An assignment based on last year's visits may change as late claims arrive. A prospective claims-based assignment starts from care observed before the performance period; a retrospective assignment uses care observed during that period. Claims runout and later eligibility updates still depend on the program. Neither label, by itself, specifies the complete algorithm.
 
-**Possible Issues with this Model**
+### How do we select a provider?
 
-* This model will not attribute patients who have not seen their primary care provider in the two-year observation 
-period.
-* This model will end up not weighting care provided by Advanced Practice Providers (APPs) less than care provided 
-by MDs and DOs.
-* This model might have specialty care services competing with primary care services due to the taxonomy classification
-system and crosswalk not reflecting APPs providing specialist care.
-* This model might not be a timely reflection for attributing patients to providers. It may take up to two years for 
-a patient to get appropriately attributed to a provider after a change in provider. 
+Common approaches compare qualifying visits, allowed amounts, or a weighted combination of services and recency. A *plurality* rule selects the largest share, which need not exceed 50%.
 
-**Additional Considerations**
+Visit counts are easy to explain but require a defensible visit definition. Claim-line counts are usually a poor substitute because one visit can produce multiple lines. Allowed amounts account for differences in reimbursed services, but also reflect prices and payment policies. Recency weights give newer care more influence while introducing another modeling choice.
 
-* How are you going to use the model? Is your use care specific to primary care?
-* Does it make sense to use allowed amounts?
-* How should timing of visits be taken into account?
-* Is there other sources besides medical claims data that you have available to use?
-* How should APP visits be handled?
-* Does your model need to be straight forward and explainable to others?
+Specify how to break ties, such as the most recent qualifying service followed by a stable provider identifier. Re-running an unchanged dataset should not move patients between providers merely because the database returns tied rows in a different order.
 
-## References 
-This page just took a look at a single attribution model. More attribution models exist.
-* https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6549236/
+## Work through an example
+
+Suppose we assign patients to the clinician with the largest allowed amount for qualifying primary care services in a 12-month period. We use the most recent qualifying visit to break ties. This is an illustrative method, not a CMS program specification.
+
+One patient has the following care:
+
+| Provider | Services observed | Qualifying allowed amount | Most recent qualifying visit |
+|---|---|---:|---|
+| Dr. Lee | Two qualifying primary care visits | $280 | October 15 |
+| Dr. Patel | Three qualifying primary care visits | $260 | December 3 |
+| Independent laboratory | Blood testing | Excluded | Not applicable |
+| Cardiologist | Specialist consultation | Excluded under this example's provider rule | Not applicable |
+
+The patient is assigned to Dr. Lee because $280 is greater than $260. Dr. Patel has more visits and the most recent visit, but neither overrides the allowed-amount rule. If both totals were $280, recency would assign the patient to Dr. Patel.
+
+Now suppose Dr. Lee and Dr. Patel work in the same practice. A practice-level method would combine their $540 of qualifying services. This example shows why the attribution level must be settled before choosing the highest total.
+
+The result is reproducible and explainable. It still does not prove whom the patient considers their primary care clinician. That is a limitation of the available evidence, not an arithmetic error.
+
+## Understand program-specific assignment
+
+CMS operates multiple attribution and alignment methods. Do not assume that Shared Savings Program, ACO REACH, and historical demonstration models use identical rules.
+
+For a concrete example, the **Medicare Shared Savings Program performance year 2025** specifications use allowed charges for defined primary care services in a multi-step claims-based assignment process. They also include eligibility rules, provider participation rules, and voluntary alignment, which can take priority over claims-based assignment. Those details cannot be reproduced by simply selecting the clinician with the largest allowed amount. The [version 13 specifications](https://www.cms.gov/files/document/medicare-shared-savings-program-shared-savings-and-losses-and-assignment-methodology-specifications.pdf-4) describe that year's method; the [CMS guidance page](https://www.cms.gov/medicare/payment/fee-for-service-providers/shared-savings-program-ssp-acos/guidance-regulations) identifies specifications for other years.
+
+When implementing a program method, preserve its name, performance year, eligible provider roster, service definitions, alignment period, and data cutoff with the result. These are part of the meaning of the assignment.
+
+## Read the resulting panel
+
+An attribution table should retain both the assignment and the evidence that produced it: the qualifying service total, most recent qualifying date, selected provider or practice, method version, and reason for an unassigned result. This makes individual assignments explainable without rebuilding the analysis.
+
+Start validation with the patients who received no assignment and the providers whose panels changed substantially. Missing rendering NPIs, incomplete practice rosters, delayed claims, and short enrollment histories can all affect the result. A large unassigned population may also be real: some members have not used qualifying care.
+
+Then examine stability. A method that moves many patients every month may be difficult to use for outreach, even if it follows its rules correctly. Conversely, a stable panel may be stale. Compare assignments with an independent source, such as a patient-selected clinician or a maintained practice panel, when one is available. Disagreement identifies cases to investigate; neither source should automatically overwrite the other.
+
+Finally, carry the attribution definition into every downstream report. If a practice's cost or quality result changes, first establish whether its patient population changed. We cannot explain provider performance well without also explaining who we counted as the provider's patients.

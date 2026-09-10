@@ -1,6 +1,682 @@
 [build]
   publish = "_book"
-  command = "curl -L -o quarto.tar.gz https://github.com/quarto-dev/quarto-cli/releases/download/v1.6.43/quarto-1.6.43-linux-amd64.tar.gz && tar -xzf quarto.tar.gz && export PATH=\"$PWD/quarto-1.6.43/bin:$PATH\" && quarto render && quarto render claims-data-analytics"
+  command = "curl -L -o quarto.tar.gz https://github.com/quarto-dev/quarto-cli/releases/download/v1.10.18/quarto-1.10.18-linux-amd64.tar.gz && tar -xzf quarto.tar.gz && export PATH=\"$PWD/quarto-1.10.18/bin:$PATH\" && bash build.sh"
+
+# Use the real HTML filename for retained chapters. Netlify also matches
+# a trailing slash here; changing the suffix avoids a slash-only redirect loop
+# and gives relative chapter assets the correct browser base directory.
+[[redirects]]
+  from = "/claims-data-analytics/analytics/basic-pmpm"
+  to = "/claims-data-analytics/analytics/basic-pmpm.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/ed-visits"
+  to = "/claims-data-analytics/analytics/ed-visits.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/hospital-readmissions"
+  to = "/claims-data-analytics/analytics/hospital-readmissions.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/member-months"
+  to = "/claims-data-analytics/analytics/member-months.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/quality-measures"
+  to = "/claims-data-analytics/analytics/quality-measures.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/risk-adjustment"
+  to = "/claims-data-analytics/analytics/risk-adjustment.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/claims-groupers-and-algos/attribution"
+  to = "/claims-data-analytics/claims-groupers-and-algos/attribution.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/claims-groupers-and-algos/encounters"
+  to = "/claims-data-analytics/claims-groupers-and-algos/encounters.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/claims-groupers-and-algos/service-categories"
+  to = "/claims-data-analytics/claims-groupers-and-algos/service-categories.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/code-sets"
+  to = "/claims-data-analytics/code-sets.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/adjustments-denials-reversals"
+  to = "/claims-data-analytics/data-sources/claims-data/adjustments-denials-reversals.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/header-line"
+  to = "/claims-data-analytics/data-sources/claims-data/header-line.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/incurred-paid-runout"
+  to = "/claims-data-analytics/data-sources/claims-data/incurred-paid-runout.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/intro-to-claims"
+  to = "/claims-data-analytics/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/key-data-elements"
+  to = "/claims-data-analytics/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/member-and-enrollment-data"
+  to = "/claims-data-analytics/data-sources/member-and-enrollment-data.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/provider-data"
+  to = "/claims-data-analytics/data-sources/provider-data.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/index"
+  to = "/claims-data-analytics/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/parts/analytics"
+  to = "/claims-data-analytics/parts/analytics.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/parts/claims-groupers-and-algorithms"
+  to = "/claims-data-analytics/parts/claims-groupers-and-algorithms.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/parts/healthcare-data-sources"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/basic-pmpm"
+  to = "/analytics/basic-pmpm.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/ed-visits"
+  to = "/analytics/ed-visits.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/hospital-readmissions"
+  to = "/analytics/hospital-readmissions.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/member-months"
+  to = "/analytics/member-months.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/quality-measures"
+  to = "/analytics/quality-measures.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/risk-adjustment"
+  to = "/analytics/risk-adjustment.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/claims-groupers-and-algos/attribution"
+  to = "/claims-groupers-and-algos/attribution.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/claims-groupers-and-algos/encounters"
+  to = "/claims-groupers-and-algos/encounters.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/claims-groupers-and-algos/service-categories"
+  to = "/claims-groupers-and-algos/service-categories.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/code-sets"
+  to = "/code-sets.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/adjustments-denials-reversals"
+  to = "/data-sources/claims-data/adjustments-denials-reversals.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/header-line"
+  to = "/data-sources/claims-data/header-line.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/incurred-paid-runout"
+  to = "/data-sources/claims-data/incurred-paid-runout.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/intro-to-claims"
+  to = "/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/key-data-elements"
+  to = "/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/member-and-enrollment-data"
+  to = "/data-sources/member-and-enrollment-data.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/provider-data"
+  to = "/data-sources/provider-data.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/index"
+  to = "/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/parts/analytics"
+  to = "/parts/analytics.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/parts/claims-groupers-and-algorithms"
+  to = "/parts/claims-groupers-and-algorithms.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/parts/healthcare-data-sources"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+# Retired outlines and the removed Getting Started section resolve to the
+# relevant retained chapter or part introduction. Both URL forms were public.
+
+[[redirects]]
+  from = "/claims-data-analytics/getting-started/tuva-fundamentals"
+  to = "/claims-data-analytics/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/getting-started/tuva-fundamentals.html"
+  to = "/claims-data-analytics/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/getting-started/data-engineering-tools"
+  to = "/claims-data-analytics/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/getting-started/data-engineering-tools.html"
+  to = "/claims-data-analytics/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/getting-started/data-science-tools"
+  to = "/claims-data-analytics/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/getting-started/data-science-tools.html"
+  to = "/claims-data-analytics/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/medical-claims-data"
+  to = "/claims-data-analytics/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/medical-claims-data.html"
+  to = "/claims-data-analytics/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/pharmacy-claims-data"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/pharmacy-claims-data.html"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/ehr-data"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/ehr-data.html"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/fhir-apis"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/fhir-apis.html"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/adt-messages"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/adt-messages.html"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/lab-results"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/lab-results.html"
+  to = "/claims-data-analytics/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/claim-types-payment-codes"
+  to = "/claims-data-analytics/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/claim-types-payment-codes.html"
+  to = "/claims-data-analytics/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/claims-date-fields"
+  to = "/claims-data-analytics/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/claims-date-fields.html"
+  to = "/claims-data-analytics/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/claims-data-sources"
+  to = "/claims-data-analytics/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/claims-data-sources.html"
+  to = "/claims-data-analytics/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/cost-field-relationships"
+  to = "/claims-data-analytics/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/cost-field-relationships.html"
+  to = "/claims-data-analytics/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/providers"
+  to = "/claims-data-analytics/data-sources/provider-data.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/data-sources/claims-data/providers.html"
+  to = "/claims-data-analytics/data-sources/provider-data.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/claims-groupers-and-algos/conditions-and-procedures"
+  to = "/claims-data-analytics/parts/claims-groupers-and-algorithms.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/claims-groupers-and-algos/conditions-and-procedures.html"
+  to = "/claims-data-analytics/parts/claims-groupers-and-algorithms.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/acute-ip-visits"
+  to = "/claims-data-analytics/claims-groupers-and-algos/encounters.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/acute-ip-visits.html"
+  to = "/claims-data-analytics/claims-groupers-and-algos/encounters.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/utilization-metrics"
+  to = "/claims-data-analytics/analytics/ed-visits.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/claims-data-analytics/analytics/utilization-metrics.html"
+  to = "/claims-data-analytics/analytics/ed-visits.html"
+  status = 301
+  force = true
+
+# The legacy Knowledge host exposes the book at its root. Handle its retired
+# short paths before the catch-all rewrite adds the canonical book prefix.
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/getting-started/tuva-fundamentals"
+  to = "/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/getting-started/tuva-fundamentals.html"
+  to = "/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/getting-started/data-engineering-tools"
+  to = "/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/getting-started/data-engineering-tools.html"
+  to = "/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/getting-started/data-science-tools"
+  to = "/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/getting-started/data-science-tools.html"
+  to = "/index.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/medical-claims-data"
+  to = "/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/medical-claims-data.html"
+  to = "/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/pharmacy-claims-data"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/pharmacy-claims-data.html"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/ehr-data"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/ehr-data.html"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/fhir-apis"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/fhir-apis.html"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/adt-messages"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/adt-messages.html"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/lab-results"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/lab-results.html"
+  to = "/parts/healthcare-data-sources.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/claim-types-payment-codes"
+  to = "/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/claim-types-payment-codes.html"
+  to = "/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/claims-date-fields"
+  to = "/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/claims-date-fields.html"
+  to = "/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/claims-data-sources"
+  to = "/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/claims-data-sources.html"
+  to = "/data-sources/claims-data/intro-to-claims.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/cost-field-relationships"
+  to = "/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/cost-field-relationships.html"
+  to = "/data-sources/claims-data/key-data-elements.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/providers"
+  to = "/data-sources/provider-data.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/data-sources/claims-data/providers.html"
+  to = "/data-sources/provider-data.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/claims-groupers-and-algos/conditions-and-procedures"
+  to = "/parts/claims-groupers-and-algorithms.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/claims-groupers-and-algos/conditions-and-procedures.html"
+  to = "/parts/claims-groupers-and-algorithms.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/acute-ip-visits"
+  to = "/claims-groupers-and-algos/encounters.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/acute-ip-visits.html"
+  to = "/claims-groupers-and-algos/encounters.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/utilization-metrics"
+  to = "/analytics/ed-visits.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/analytics/utilization-metrics.html"
+  to = "/analytics/ed-visits.html"
+  status = 301
+  force = true
+
+# A retirement redirect can retain the canonical book prefix on this host.
+# Serve that path directly instead of adding the prefix a second time.
+[[redirects]]
+  from = "https://knowledge.thetuvaproject.com/claims-data-analytics/*"
+  to = "/claims-data-analytics/:splat"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "https://knowledge.thetuvaproject.com/"

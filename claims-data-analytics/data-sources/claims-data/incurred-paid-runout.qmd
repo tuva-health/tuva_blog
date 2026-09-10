@@ -1,86 +1,112 @@
 ---
 id: incurred-paid-runout
-title: "Claims Lag Issues"
-description: This section covers the time lag between the date that healthcare services are performed (i.e. claims are incurred) and when they are processed and paid, and common approaches to accounting for this lag in analytics. 
+title: "Claims Lag and Runout"
+description: "Understand when claims become visible, compare periods at equal maturity, and interpret completion estimates."
 ---
-<div style={{ marginTop: "-2rem", marginBottom: "1.5rem" }}>
-  <small><em>Last updated: 09-23-2025</em></small>
-</div>
 
-## Medical Claims Dates
+A sudden drop in recent medical spending is often the first exciting result in a new claims dataset. It is also one of the first results to distrust. The care may already have happened while the claims are still being submitted, processed, paid, or delivered to your warehouse.
 
-There are typically two important dates to account for when analyzing claims data:
+This delay is **claims lag**. It affects cost, utilization, diagnoses, and any other analysis that depends on claims becoming visible. In this chapter, we'll distinguish the dates involved, learn to compare periods fairly, and work through a simple completion estimate. The numbers are illustrative; they are not benchmarks for how quickly any particular payer's claims develop.
 
-**Incurred Date** This is the date that the healthcare service/s recorded on the claim was rendered. There are tecnically no fields on a claim form labled *incurred date*. Instead this date is typically derived from the Claim Start or Claim End dates on either the claim header or the claim line. Sometimes these dates are supplemented with Admission Start or End dates found on Institutional claims. The Tuva Project for example uses hierarchical assignment logic that first selects the claim header start date, then subsitutes in claim end dates, claim line start & end dates, or admit start and end dates depending on the type of claim. The important thing to know is that this *incurred date* field should represent the date the service was performed or *rendered* (as it is sometimes referred to). 
+## Three clocks to keep separate
 
-**Paid Dates** - Paid dates are simply the date that a claim was paid. As with most concepts relating to healthcare though, the actual date that a claim was paid can be subject to interpretation and complexity. Sometimes, claim feeds may use the concepts of *claims processed dates* and *claims paid dates* synonymously, when in fact a claim could be adjudicated/processed one day and an actual claims check or payment processes later. This nuance is often abstracted away unless you are dealing with a claims feed that has both dates, or you work at a health insurance company and must decide which date/concept makes the most sense for your analytical use case. In most analytical cases, the date the claim was processed is sufficient since what we often want to understand is the time lag between when a service was rendered and when we see that reflected in claims. That said, a claims feed from a payer often contains only claims that were actually paid. For the purposes of the rest of this chapter, we will use the term "Paid" date and treat the two concepts synonymously. 
+Claims analysis usually involves three different timelines.
 
-## Claims Lag
-Typical claims analytics utilize data feeds that update monthly, with the latest complete month containing all claims that were *paid* in that month. This does not mean however that the latest month contains all claims that were *incurred* in that month. It is common for medical claims to take some time to be submitted by the provider and work their way through the chain of revenue cycle management vendors, clearinghouses, adjudication systems, and internal payer ETL or ELT processes and into the payer data warehouse for analysis or distribution to downstream partners, ACOs, analytics teams etc... 
+The **incurred period** assigns the service or financial obligation to a period of analysis. For a medical utilization report, this is commonly based on service dates. A hospital stay crossing month-end requires a convention: admission month, discharge month, service-line dates, or an allocation across days. The choice should follow the measure. There is no universal `incurred_date` field that removes this decision.
 
-This delay is commonly referred to in the industry as **Claims Lag**. Claims Lag can significantly impact claims analytics, causing an artificial drop off in cost and utilization in the most recent months preceding the analysis. 
+The **paid period** records when the payer paid the claim or posted the relevant payment transaction. An adjudication date records when the claim was processed. These can differ. If a feed supplies a processed date as a proxy for paid date, document that substitution and use it consistently. A processed-date analysis cannot automatically be interpreted as a cash-payment analysis.
 
+The **data as-of date** describes the information available for the analysis. A file received in July might contain payments only through June. Another file received on the same day might be missing a week of June activity. Record both the source cutoff and the delivery used; the warehouse load date alone does not establish completeness.
 
-![claims lag image](/img/claims_lag.png)
+For example, “January–June services, paid through June 30, using the July 10 extract” is much more informative than “first-half claims.” See [Key Data Elements](key-data-elements.qmd) for the underlying dates.
 
-The figure above shows an example of the impact of claims lag, where the medical claims inpatient visits per 1000 drops off significantly beginning in July. The actual inpatient visits per 1000 is depicted by the "EWS" which in this case represents "Early Warning System" data that tracks inpatient utilization via non-claims sources like Hospital Admissions or EMR data. The delta between the two is shaded in blue. As you can see, utilization is dramatically underestimated in later months. This lag represents a typical, predictable, phenomenon in healthcare economics that is typically dealt with in 2 key ways: 
+For an incurred cohort, an *incurred claims* estimate includes payments to date plus estimated unpaid obligations. This differs from incurred expense for an accounting period, which includes payments during that period plus the change in unpaid claims liabilities from its beginning to its end. The [Actuarial Standards Board's ASOP No. 5](https://www.actuarialstandardsboard.org/wp-content/uploads/2017/04/asop005_186.pdf) distinguishes these definitions and defines the valuation date. Be clear about whether a report shows observed spending, estimated ultimate cost for a cohort, or accounting-period expense.
 
-## Claims Runout
+## Why recent periods are incomplete
 
-Wait for sufficient time to elapse so that lagging claims show up in the data and you have a more complete picture. Typically, this involves waiting until at least three full months have elapsed since the last incurred date in the period of claims you are analyzing. At this point, it is typical—but not guaranteed—to have nearly complete claims, if you are receiving the updated claims data feeds very soon after processing (typical in health plans). If you are receiving claims as a provider or third party, sometimes you will require more lag time to account for delays in when you get your extract. You should typically receive the incurred and paid time periods covered by the extracts you are receiving. Oftentimes, value-based care contracts specify how much paid runout is required to conduct the final analysis of the claims, and it is often at least six months of paid claims runout from the last month of incurred claims (e.g., Jan 2024–Dec 2024 incurred, Jan 2024–June 2025 paid).
-## Completion Factors
+A service can pass through several organizations before it appears in an analytical extract. The provider must finish the documentation and billing. A clearinghouse may return an error. The payer may need additional information. A payment can then wait for the next extract and delivery cycle.
 
- A set of adjustment factors or weights that are applied to aggregate costs for each month, such that the costs are adjusted to account for lagging claims. The impact of these adjustments are greater in more in recent months. These factors are derived from historical analysis of the completeness of claims relative to a given point in time. The output of this analysis is commonly referred to as a *lag traingle*, which plots the percentage of incurred claims that have been paid in each month since the incurred month. This is done using historical data so the percentage of claims is truly known. 
- 
- In the table below, you can see that in past years, 60% of claims incurred in January were paid in January, 85% of claims incurred in January were paid by the end of February (1 month following incurred date), 93% of claims incurred in January were paid in March, and so on. As you can see in this example, it is possible for some claims to lag for very long periods of time (note that in some cases even 12 months out from the incurred date, the completion rate is less than 100%) This is often due to pending manual review or disputes between providers and payers that result in delays in processing and payment of claims. Often, these lagging claims are higher cost claims, typically those reflecting inpatient admissions. For this reason, completion factors are sometimes calculated separately for different service categories (eg. Inpatient, Outpatient, Professional, Pharmacy, Other). 
+This means a complete file of payments made in June is not a complete record of services performed in June. Some June services will appear in July or later. June's file may also contain payments for services from much earlier months.
 
-<div style={{ textAlign: "center", marginBottom: "-2.75rem" }}>
-  <strong>Age of Claim in Months Since Incurred Date</strong>
-</div>
-| Incurred Month              | 0    | 1    | 2    | 3    | 4    | 5    | 6    | 7    | 8    | 9    | 10   | 11   | 12   |
-|-----------------------------|------|------|------|------|------|------|------|------|------|------|------|------|------|
-| Jan                         | 60%  | 85%  | 93%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.2%| 99.5%| 99.7%| 99.8%| 100% |
-| Feb                         | 58%  | 84%  | 92%  | 95%  | 97%  | 98%  | 98.5%| 99%  | 99.2%| 99.5%| 99.7%| 99.8%| 100% |
-| Mar                         | 59%  | 83%  | 91%  | 95%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%| 99.7%| 99.8% |
-| Apr                         | 61%  | 85%  | 92%  | 95%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%| 99.7%| 99.8% |
-| May                         | 60%  | 84%  | 91%  | 94%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%| 99.7%| 99.8% |
-| Jun                         | 62%  | 85%  | 92%  | 95%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%| 99.7%| 99.8% |
-| Jul                         | 61%  | 84%  | 92%  | 95%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%| 99.7%| 99.8% |
-| Aug                         | 60%  | 85%  | 92%  | 95%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%| 99.7%| 99.8% |
-| Sep                         | 59%  | 84%  | 91%  | 95%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%| 99.7%| 99.8% |
-| Oct                         | 60%  | 85%  | 92%  | 95%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%|   –  |   –  |
-| Nov                         | 61%  | 84%  | 92%  | 95%  | 96%  | 97%  | 98%  | 98.5%|   –  |   –  |   –  |   –  |   –  |
-| Dec                         | 60%  | 85%  | 92%  | 95%  | 96%  | 97%  |   –  |   –  |   –  |   –  |   –  |   –  |   –  |
-| **Completion Factor (Avg.)**| 60%  | 84%  | 92%  | 95%  | 96%  | 97%  | 98%  | 98.5%| 99%  | 99.3%| 99.5%| 99.8%| 100% |
+Different services and sources can have different development patterns. A quick pharmacy transaction and a disputed hospital bill should not be assumed to arrive at the same speed. Nor should an analyst receiving a delayed monthly extract assume the same visibility as the payer's internal team.
 
- The percentage of completeness in each column is averaged across all incurred months evaluated in the time period being analyzed to produce a *completion factor* as shown in the bottom row of the table. You can then *complete* claims by dividing the aggregate cost for each month by the completion factor for the age of that claim to get a projected cost. See the example below to see how this works in practice. 
+Lag affects denominators and numerators differently. Enrollment may arrive before the corresponding claims, making recent PMPM or utilization rates appear low. Coverage can also change retroactively. Review both sides of a rate before attributing a change to clinical performance.
 
-### Completion Factor Example: Analyzing a full year of incurred claims using completion factors (All data is illustrative only)
+## Runout: allowing time for claims to arrive
 
-**Incurred Dates:** January–December 2024
-**Paid Dates:** January-December 2024
+**Runout** is the additional period during which claims for an earlier incurred period continue to be received or paid. Under a monthly convention, January claims observed through the end of January have age 0; observed through the end of February, they have one month of runout, or age 1.
 
-In this example, we are analyzing claims in January 2025 and want to make some estimates of claims completeness even though we don't yet have sufficient claims runout to consider the period complete.
-To do this, we will take the total cost aggregated for each incurred month and divide by the completion rate that corresponds to its **current age** (months since incurred date through December).  
-Formula: `Projected = Observed / Completion Factor`.
+There is no fixed amount of runout that guarantees completeness. Select a cutoff using the source's observed development, the service category, the size of the remaining uncertainty, and any applicable contractual specification. Three or six months may be a reporting convention, but neither is evidence by itself that every claim has arrived.
 
-| Incurred | Current Age | Unadjusted Cost        | Completion Factor | Completed Cost        |
-|:---------|------------:|-----------------------:|------------------:|----------------------:|
-| Jan      | 11          | $1,000,000             | 100.0%            | $1,000,000            |
-| Feb      | 10          | $1,000,000             | 100.0%            | $1,000,000            |
-| Mar      | 9           | $1,000,000             | 100.0%            | $1,000,000            |
-| Apr      | 8           | $1,000,000             | 100.0%            | $1,000,000            |
-| May      | 7           | $1,000,000             | 100.0%            | $1,000,000            |
-| Jun      | 6           | $1,000,000             | 100.0%            | $1,000,000            |
-| Jul      | 5           |   $996,000             | 99.6%             | $1,000,000            |
-| Aug      | 4           |   $990,000             | 99.0%             | $1,000,000            |
-| Sep      | 3           |   $960,000             | 96.0%             | $1,000,000            |
-| Oct      | 2           |   $930,000             | 93.0%             | $1,000,000            |
-| Nov      | 1           |   $850,000             | 85.0%             | $1,000,000            |
-| Dec      | 0           |   $600,000             | 60.0%             | $1,000,000            |
-| **Total**|             | **$11,326,000**        |                   | **$12,000,000**       |
+One practical approach is to **compare periods at equal maturity**. Compare January through March this year with January through March last year, giving both periods the same number of subsequent paid months. Otherwise, a mature prior year compared with an immature current year can create apparent savings that disappear as claims arrive.
 
-- **Unadjusted Cost** (what’s actually paid through Dec): **$11.326M**  
-- **Completed Cost** (what's projected after completion factors applied): **$12.000M**  
+Waiting improves completeness at the cost of timeliness. When that tradeoff does not fit the question, we can estimate the missing amount. The estimate needs to remain distinguishable from the observed data.
 
+## Reading a development triangle
 
+A **development triangle**, also called a lag triangle, organizes claims by incurred period and development age. The following table shows cumulative net paid amounts, in thousands of dollars, as of June 30 of an illustrative year.
+
+| Incurred month | Age 0 | Age 1 | Age 2 | Age 3 | Age 4 | Age 5 |
+|:--|--:|--:|--:|--:|--:|--:|
+| January | 60.0 | 85.0 | 95.0 | 98.0 | 99.0 | 100.0 |
+| February | 72.0 | 102.0 | 114.0 | 117.6 | 118.8 | — |
+| March | 54.0 | 76.5 | 85.5 | 88.2 | — | — |
+| April | 66.0 | 93.5 | 104.5 | — | — | — |
+| May | 60.0 | 85.0 | — | — | — | — |
+| June | 78.0 | — | — | — | — | — |
+
+Read across the January row: $60,000 was paid during January for January services, and $85,000 had been paid by the end of February. The additional payment during February was therefore $25,000. The table is **cumulative**, so adding cells across the row would double-count payments.
+
+Read down the age 1 column to compare different incurred months at the same stage of development. Read the last observed cell in each row to see what is available at the common June 30 cutoff. The blank cells are future observations, not zero payments. Their shape gives the triangle its name.
+
+Build the triangle from a consistent financial basis and account for [adjustments and reversals](adjustments-denials-reversals.qmd). With recoveries or reversals, cumulative net paid amounts can decrease. Do not force the data to increase merely because a simple teaching example does.
+
+A current final-state claims table may not retain what was known at earlier cutoffs. Reconstructing that history requires suitable transaction dates and amounts, historical snapshots, or another source that preserves development. Moving every adjustment back to an original payment date can make a historical triangle look more complete than it actually was.
+
+## From development to completion
+
+To estimate ultimate cost, we need an assumption about what share has been observed at each age. Call this the **completion percentage**, $c_a$, for age $a$.
+
+One simple way to estimate it is to use older, sufficiently mature cohorts and divide their cumulative paid amount at a selected age by their selected ultimate amount. For example, suppose three older cohorts had paid $850,000, $1,020,000, and $680,000 by age 1, with selected ultimate amounts of $1 million, $1.2 million, and $800,000. Their combined age 1 completion percentage is:
+
+$$
+c_1 = \frac{850{,}000 + 1{,}020{,}000 + 680{,}000}
+                 {1{,}000{,}000 + 1{,}200{,}000 + 800{,}000}
+    = 0.85.
+$$
+
+This ratio weights cohorts by ultimate dollars. It is not generally the same as a simple average of monthly percentages. The ultimate amounts are themselves selected estimates unless the cohorts are considered fully settled; historical data does not make the ultimate automatically known.
+
+For observed paid amount $P_a$ and a positive selected completion percentage $c_a$:
+
+$$
+\widehat{U} = \frac{P_a}{c_a},
+\qquad
+\widehat{\text{unpaid}} = \widehat{U} - P_a.
+$$
+
+Some teams call $c_a$ a *completion factor*. Others use “factor” to mean the reciprocal development multiplier, $1/c_a$. Write down the formula to remove the ambiguity: 85% completion means dividing by 0.85, or multiplying by approximately 1.1765. Multiplying by 0.85 would reduce an already incomplete amount.
+
+Assume a separate analysis of mature history led us to select completion percentages of 60%, 85%, 95%, 98%, 99%, and 100% for ages 0 through 5. Applying these illustrative selections to the triangle gives:
+
+| Incurred month | Age at June 30 | Observed paid | Selected completion | Estimated ultimate |
+|:--|--:|--:|--:|--:|
+| January | 5 | $100,000 | 100% | $100,000 |
+| February | 4 | $118,800 | 99% | $120,000 |
+| March | 3 | $88,200 | 98% | $90,000 |
+| April | 2 | $104,500 | 95% | $110,000 |
+| May | 1 | $85,000 | 85% | $100,000 |
+| June | 0 | $78,000 | 60% | $130,000 |
+| **Total** | | **$574,500** | | **$650,000** |
+
+The estimated unpaid amount is $75,500. The assumption of 100% at age 5 is only for this example; real selections may allow development well beyond that point. These calculations illustrate the mechanics of a completion estimate, not how to choose a reserving method for a particular population.
+
+## What the estimate can and cannot tell us
+
+The biggest uncertainty is usually in the newest months. With $78,000 observed for June, selecting 50% completion yields $156,000; selecting 70% yields about $111,429. A plausible-looking factor can materially change the result.
+
+Payment patterns can also change. A new claims system, missing delivery, processing backlog, or change in the mix of services can make older experience a poor guide. Investigate these events before applying historical factors. Segmenting by service or payer can help, but very small groups may not provide enough stable experience for separate estimates.
+
+Dollar completion is not necessarily encounter completion. A missing high-cost admission can affect spending much more than visit counts. Use a development approach appropriate to the measure instead of applying a cost factor to every claims-derived metric.
+
+Keep observed and estimated amounts side by side, state the cutoff and selected assumptions, and compare prior estimates with later results. Building the warehouse inputs and applying supplied factors are data transformations. Selecting and evaluating estimates of unpaid liabilities is actuarial work; [ASOP No. 5](https://www.actuarialstandardsboard.org/wp-content/uploads/2017/04/asop005_186.pdf) addresses that broader judgment and follow-up. A completed claims chart should help readers see uncertainty, not make it disappear.

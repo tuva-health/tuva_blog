@@ -1,95 +1,90 @@
 ---
 id: header-line
 title: "Headers and Lines"
-description: This section discusses elements commonly found on the Claim Form Header vs. those contained on individual Claim Form Lines, and how to interpret and analyze them. 
+description: How claim, version, and service-line grain determine what we can count, join, and sum without distorting an analysis.
 ---
-## Claim Headers
 
-The claim header is the top-level portion of a claim. It contains information that applies to the entire claim regardless of the number of services (claim lines) included. It lets you track who, when, and at what overall cost the services occurred.
+Before writing a query against a claims table, finish this sentence: *one row represents...* If we cannot answer it precisely, we are not ready to count rows or sum dollars.
 
-Typical data elements:
+A claim has information that applies to the whole bill and repeating detail about the services or charges on that bill. We call these the **header** and the **lines**. In this chapter, we'll use that structure to understand the grain of a claims dataset and avoid some of the most common errors in healthcare analytics.
 
-- Patient-level info: Patient ID, DOB, gender.
-- Subscriber-level info: Member/Subscriber ID, relationship to subscriber.
-- Provider info: Billing provider NPI, taxonomy, billing address.
-- Claim-level info: Claim number, payer claim control number, claim received date, claim type (professional vs institutional), total billed amount, total allowed amount, paid amount.
-- Insurance info: Plan ID, payer ID, coverage type.
-- Admission/discharge info (for UB-04/institutional claims).
+## The header describes the claim
 
-## Claim Lines
+The header contains information shared by the claim's lines. Common examples include the patient identifier, billing provider, claim identifier, and total submitted charge. Institutional claims also carry information about the billing period, admission, and patient discharge status.
 
-A claim line is a single itemized service or charge that falls under the claim header. A claim usually contains multiple lines, and the lines tell you what specifically was done/provided during the encounter and the payment detail at the service level.
+An adjudicated claims extract can add claim-level payment status, allowed and paid amounts, and processing dates. These are fields supplied by the payer or derived in the extract; they are not all fields from the provider's original bill. Keeping that distinction in mind helps when reconciling submitted claims with remittance or payer data.
 
-Typical data elements:
+Header-level does not always mean a single value. A claim can contain an ordered list of diagnoses, several provider roles, or multiple occurrence codes. The important distinction is that these records belong to the claim as a whole unless the source explicitly associates them with a service line.
 
-- Service-level info: CPT/HCPCS code (procedure), modifiers, revenue codes (for UB-04), line billed amount, line allowed/paid amounts.
-- Diagnosis pointers: Links to the ICD-10 codes on the header to show why the service was performed.
-- Service dates: From/to dates (can differ line by line).
-- Units of service: E.g., 5 units of physical therapy or 30 days of medication.
-- Rendering provider info (if different from billing provider).
+## Lines describe billed services and charges
 
-## Professional Claims (CMS-1500)
+A line is a repeating item within a claim. Depending on the claim type, it can contain a procedure code, revenue code, modifiers, service dates, units, and charge amount. Adjudicated data may also provide line-level allowed amounts, payment amounts, and adjustment reasons.
 
-Used by: Individual providers and clinics (physicians, therapists, durable medical equipment suppliers).
+The [NUCC instructions](https://www.nucc.org/index.php/1500-claim-form-mainmenu-35/1500-instructions-mainmenu-42) describe professional service lines, including dates, place of service, procedures, diagnosis pointers, charges, units, and rendering-provider information. Institutional lines instead center on revenue-code detail and can also contain HCPCS codes, dates, units, and charges, as described in [CMS's institutional billing instructions](https://www.cms.gov/regulations-and-guidance/guidance/manuals/downloads/clm104c25.pdf).
 
-Claim Header:
+A line does not necessarily represent one visit, one procedure, or one day. It may bill several units, span multiple dates, or describe a charge included in another payment. Units also have different meanings across services. Two units of a drug code and two units of a time-based therapy code cannot be added to produce a meaningful total of “services.”
 
-- Patient/subscriber info: Name, DOB, subscriber ID, relationship.
-- Billing provider info: NPI, address, taxonomy.
-- Payer info: Insurance plan, payer ID.
-- Claim control number: For tracking.
-- Total charge amount: Sum of all lines.
+## Follow the dollars through a simple claim
 
-Claim Lines:
+Suppose a professional claim contains the following three lines. The services and amounts are illustrative.
 
-- CPT/HCPCS procedure codes (with modifiers if needed).
-- Diagnosis pointers (e.g., Line 1 points to ICD-10-CM codes A + B).
-- Units (time-based services, number of items dispensed).
-- Line billed, allowed, paid amounts.
-- Rendering provider NPI (if different from billing provider).
+| Claim | Line | Service | Billed | Allowed | Payer paid |
+| --- | ---: | --- | ---: | ---: | ---: |
+| A100 | 1 | Office evaluation | $150 | $90 | $70 |
+| A100 | 2 | Laboratory service | $200 | $150 | $120 |
+| A100 | 3 | Diagnostic service | $100 | $80 | $60 |
+| **Claim total** | | | **$450** | **$320** | **$250** |
 
-Key Feature: The focus is on procedure codes (CPT/HCPCS) because the claim is about what the provider did.
+Here the header totals equal the sums of the corresponding lines. That equality is part of this example's data contract. In an actual feed, confirm whether the payer supplies a complete allocation to lines and whether claim-level adjustments are included.
 
-## Institutional Claims (UB-04)
+Now suppose the payer delivers a flat file with one row per line and repeats the header paid amount on every row:
 
-Used by: Hospitals, skilled nursing facilities, home health agencies, outpatient facilities.
+| Claim | Line | Line paid amount | Header paid amount |
+| --- | ---: | ---: | ---: |
+| A100 | 1 | $70 | $250 |
+| A100 | 2 | $120 | $250 |
+| A100 | 3 | $60 | $250 |
 
-Claim Header:
+Summing `line_paid_amount` gives $250. Summing `header_paid_amount` gives $750. Both columns contain accurate values; only one is additive at the table's grain.
 
-- Patient info: Same as professional.
-- Billing provider info: Facility NPI, type of bill.
-- Admission/discharge dates, patient status (e.g., discharged home, expired).
-- Claim totals: Total charges, covered charges, non-covered charges.
-- Occurrence, condition, and value codes (special billing info like accident dates, patient liability).
+The solution is to aggregate each measure at the grain where it is defined. Use one header record per claim version for header totals. Use line amounts when they are truly line amounts. Do not use `sum(distinct paid_amount)` as a shortcut: two unrelated claims can have the same payment, and that expression would count it only once.
 
-Claim Lines:
+If a source supplies only a header payment, we can report the payer's payment for the claim. We cannot directly observe what the payer paid for each line. Dividing the total equally or allocating it by charges creates an estimate. Such an allocation may be useful, but it needs an explicit method and should remain distinguishable from a reported payment.
 
-- Revenue codes: Identify the type of department/service (e.g., 0450 = Emergency Room, 0300 = Laboratory).
-- HCPCS/CPT codes (optional, used especially for outpatient).
-- Units (e.g., 3 days of room & board, 2 hours of observation).
-- Line-level charges.
-- Service dates (per line).
+## Claims, versions, and lines need different identities
 
-Key Feature: The focus is on facility services and resources used (via revenue codes), with CPT/HCPCS used for outpatient detail.
+A typical medical claims dataset has at least three levels of identity:
 
-## How They Work Together
+| Level | What it identifies | Example |
+| --- | --- | --- |
+| Claim family | The original bill and related corrections or reversals | A100 and its replacements |
+| Claim version or transaction | A particular submission, adjudicated state, or financial event | The second adjudicated version of A100 |
+| Claim line | A particular item within that version or transaction | Line 2 on that version |
 
-The header is the “envelope” for the claim; the lines are the “contents.” When analyzing data, use header-level fields for identifying the claim and overall cost; use line-level fields for utilization (types of services, coding detail, units).
+The source may represent these levels with one identifier, several identifiers, or a combination of identifiers and sequence fields. Include the source or payer context in the key: claim number `A100` from one source is not automatically the same claim as `A100` from another.
 
-- Professional (CMS-1500) = itemized physician/provider services (what a doctor did).
-- Institutional (UB-04) = itemized facility services (where the patient was and what resources were used).
+Line numbers are generally meaningful within their parent record. Line 2 on a corrected claim is not guaranteed to be the same service as line 2 on the original. A correction may insert, remove, split, or reorder lines. Matching versions by line number alone can attach a payment or diagnosis to the wrong service.
 
-Example:
+Repeated identifiers therefore call for investigation, not immediate deletion. They may represent valid lines, claim versions, or repeated deliveries of the same record. Establish the intended key before treating repetition as a data quality error. [Adjustments, Denials, and Reversals](adjustments-denials-reversals.qmd) develops the version problem further.
 
-- Claim Header: Patient X, Dr. Smith, 01/15/2025, billed $1,200, total allowed $850.
-- Claim Lines:
-  - Line 1: CPT 99213 (office visit), billed $150, allowed $90.
-  - Line 2: CPT 80053 (comprehensive metabolic panel), billed $200, allowed $150.
-  - Line 3: CPT 93000 (ECG), billed $100, allowed $80.
+## A claim is not an encounter
 
-Together, those three lines add up to the amounts summarized at the header.
+Imagine an emergency department visit with imaging. The hospital can submit a facility claim, an emergency physician group can submit a professional claim, and a radiologist can submit another professional claim. Those bills may arrive on different dates and use different claim identifiers even though they relate to the same visit.
 
-Example scenario: Patient goes to ER and receives a physician exam and a CT scan. The payer receives two separate claims (professional + institutional) for the same encounter.
+The reverse also happens: a bill can span multiple service dates, and an institutional stay can be split across billing periods. Counting claims is therefore a measure of billing records. Counting encounters requires an additional definition that groups the relevant records into healthcare events.
 
-- Institutional claim (UB-04): ER facility fee (rev code 0450), CT scan facility charge (rev code 0350).
-- Professional claim (CMS-1500): Physician exam CPT 99285, radiologist read CPT 70450.
+The same distinction applies to procedures. A facility line and a professional line may describe different billable components of one procedure. Two appearances of a procedure code do not, by themselves, establish that the patient underwent the procedure twice.
+
+## Joins can quietly change the grain
+
+Suppose our three-line claim has four header diagnoses. Joining every diagnosis directly to every line produces twelve rows. This may be appropriate for exploring the claim's diagnoses alongside its services. It is not safe for summing the line payments: each payment now appears four times.
+
+Professional diagnosis pointers can associate a line with specific entries in the claim's diagnosis list. Preserve those relationships when the source supplies them. A pointer is a position in that list, not a diagnosis code, and it must be resolved within the correct claim version. When pointers are absent, do not pretend the extract establishes which diagnosis motivated each line.
+
+For analyses that ask whether a claim has a condition, an existence check or a separately aggregated condition flag often avoids multiplying the financial rows. For analyses that need all diagnoses, keep the diagnosis table separate and join only after deciding the target grain.
+
+## Check the structure before using the totals
+
+For each source, we want evidence that the chosen line key is unique, header values are consistent within a claim version, and joins preserve the expected row count. Where the source promises that line amounts reconcile to header totals, verify that relationship and investigate exceptions.
+
+These checks answer a practical question: can we explain how the original records became the rows in our analysis? Once we can, the meaning of the individual fields becomes much easier to establish. We'll turn to those meanings in [Claims Data Elements](key-data-elements.qmd).

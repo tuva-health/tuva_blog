@@ -1,67 +1,114 @@
 ---
 id: member-months
 title: "Member Months"
-description: This section describes 
+description: "Turn eligibility spans into population exposure while making partial-month and coverage rules explicit."
 ---
 
-<iframe width="640" height="400" src="https://www.youtube.com/embed/UNjUwevyBDk?si=8rMBWMlH4g9Ee8rQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+An insured person can have no claims in a given month. If we build our population by selecting people from a claims table, we exclude enrolled people with no claims and can overstate utilization and cost per person.
 
-When trending population level statistics such as claims payments or utilization, it's essential to normalize for changes in patient enrollment i.e. eligibility.  The common way to do this is by computing member months and using this as the denominator.  Statistics that have been normalized changes in members months are often reported as "per-member-per-month" or "PMPM".  For example, one would typically look at ED visits PMPM.
+In this chapter, we'll turn eligibility spans into **member months**, the denominator used throughout claims analytics. We'll work through partial months, overlapping spans, and benefit coverage, then show how the result connects to cost and utilization.
 
-In case it isn't obvious, the reason it's a best practice to normalize for changes in enrollment when trending these sorts of statistics is because things like claims payments and utilization will change month-to-month simply because the eligible population changes as members gain/lose eligibility due to changes in employment, birth, death, etc.
+## Measure exposure, not activity
 
-The process of calculating PMPM requires assigning claims to a particular member month.  The two date fields most commonly used to do this are claim_start_date and claim_end_date.  Paid_date is less commonly used because doing so will include variation due to claims adjudication e.g. adjustments that occur for some claims over time.  Sometimes this is desired, but for most analyses it's more common to take the date from when the healthcare encounter occurred.
+A member month represents a person's coverage during a calendar month under a specified rule. Twelve months of coverage usually contribute twelve member months. A person enrolled for three months contributes three under a whole-month counting rule, even if they have no claims in those months.
 
-Using claim_start_date will often lead to slightly different results than claim_end_date, though the difference is often small.  Although there is no hard rule, it's more common to use claim_start_date, the thinking being that if a patient loses eligibility during a long encounter, the insurer who covered the patient at the beginning of the encounter is more likely to pay.  However we haven't seen much hard evidence supporting this hypothesis and our current use of claim_start_date is more out of convention than anything else.
+This is a measure of the population we can observe through a coverage arrangement. It is different from a count of patients treated, unique people enrolled during a year, or people assigned to a provider. Those quantities can all be useful, but they are not interchangeable denominators.
 
-## Calculating Member Months
+The underlying input is usually a set of enrollment spans. As discussed in [eligibility and enrollment](../data-sources/member-and-enrollment-data.qmd), the source may report a snapshot, a history, or a sequence of changes. Resolve that representation before expanding dates into months. Otherwise, a corrected span and the span it replaced can both contribute to the denominator.
 
-In this section we use an example to describe how to calculate member months.  This is the same methodology we use in the Tuva Project.  
+## Choose a partial-month rule
 
-To calculate member months, you need to convert each patient's eligibility record (with start and end dates) into multiple records, with one record for each month of eligibility.  Let's take an example.  Suppose member A1234 has coverage from Aetna from January 1st to June 15th of 2022.  They lose coverage on June 16th and they regain coverage on August 10th.  Further suppose member B2468 has coverage from January 1st through the entire year of 2022.  These two members would have eligibility spans that look like the data below:
+Consider three fictional people with medical coverage during the first quarter of 2025. In this example, coverage start and end dates are inclusive.
 
-| person_id | payer | enrollment_start_date | enrollment_end_date |
-| --- | --- | --- | --- |
-| A1234 | Aetna | 01-01-2022 | 06-15-2022 |
-| A1234 | Aetna | 08-10-2022 | |
-| B2468 | Aetna | 01-01-2022 | 12-31-2022 |
+| Person | Coverage starts | Coverage ends |
+|---|---|---|
+| A | January 1 | March 31 |
+| B | February 10 | March 31 |
+| C | January 1 | January 20 |
 
-Finally, let's suppose the current date is January 31st 2023.
+Under an **any-day rule**, a person counts for a month if they were covered for at least one day in that month.
 
-In this example, patient B2468 has an enrollment span with 12 months of continuous eligibility, and so should be counted as having 12 member months.  And it turns out that A1234 should also be counted as having 12 member months, but the assignment isn't as straightforward.  To unpack it, we need to take a brief detour into partial eligibility.
+| Person | January | February | March | Total |
+|---|---:|---:|---:|---:|
+| A | 1 | 1 | 1 | 3 |
+| B | 0 | 1 | 1 | 2 |
+| C | 1 | 0 | 0 | 1 |
+| **Total member months** | **2** | **2** | **2** | **6** |
 
-Partial eligibility occurs whenever a patient does not have eligibility for an entire month.  A1234 has partial eligibility for the months of June 2022 and August 2022.  There are multiple methods for handling partial eligibility when computing member months, but the most common method is to assume full eligibility for the entire month.  Not every type of health insurance coverage works like this, but the majority do. In the example above we would give A1234 a full member month for both June 2022 and August 2022, following this method.  
+A first-day rule counts five member months: B does not qualify in February. A full-month rule counts four: B does not qualify in February, and C does not qualify in January. All three calculations can be correct under their respective definitions.
 
-<iframe width="640" height="400" src="https://www.youtube.com/embed/y9toS1ErRXE?si=_cNwH7ANDWWQElip" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen="true"></iframe>
+A fourth approach measures covered days as a fraction of the calendar month. C contributes 20 ÷ 31 in January; B contributes 19 ÷ 28 in February. Together with A's three full months and B's full March, total exposure is approximately **5.32 fractional member months**. This method handles partial coverage differently from counting any covered month as one. Label the result so readers know which denominator they are seeing.
 
-After converting the above enrollment spans to member months (e.g. by using the SQL at the end of this section), the data would look like this:
+There is no universal partial-month rule for every analytic or contractual purpose. Match the rule to the measure you are implementing or the question you are answering. If you publish several counting flags, name them explicitly and choose the appropriate one in each calculation.
 
-| person_id | year_month | payer | 
-| --- | --- | --- | 
-| A1234 | 2022-01 | Aetna | 
-| A1234 | 2022-02 | Aetna | 
-| A1234 | 2022-03 | Aetna | 
-| A1234 | 2022-04 | Aetna | 
-| A1234 | 2022-05 | Aetna | 
-| A1234 | 2022-06 | Aetna | 
-| A1234 | 2022-08 | Aetna | 
-| A1234 | 2022-09 | Aetna | 
-| A1234 | 2022-10 | Aetna | 
-| A1234 | 2022-11 | Aetna | 
-| A1234 | 2022-12 | Aetna | 
-| A1234 | 2023-01 | Aetna | 
-| B2468 | 2022-01 | Aetna | 
-| B2468 | 2022-02 | Aetna | 
-| B2468 | 2022-03 | Aetna | 
-| B2468 | 2022-04 | Aetna | 
-| B2468 | 2022-05 | Aetna | 
-| B2468 | 2022-06 | Aetna | 
-| B2468 | 2022-07 | Aetna | 
-| B2468 | 2022-08 | Aetna | 
-| B2468 | 2022-09 | Aetna | 
-| B2468 | 2022-10 | Aetna | 
-| B2468 | 2022-11 | Aetna | 
-| B2468 | 2022-12 | Aetna | 
+## Expand spans into months
 
-Notice that the last member month given to patient A1234 was for January 2023, since we supposed the present date was January 31st 2023 in our example.
+A calendar table makes the transformation straightforward. For an any-day rule, an enrollment span overlaps a month when:
 
+$$
+\text{Coverage start} \leq \text{Month end}
+\quad\text{and}\quad
+\text{Coverage end} \geq \text{Month start}
+$$
+
+Suppose `medical_eligibility_span` contains resolved medical coverage spans, and `calendar_month` has one row per calendar month with its first and last dates. This query creates member months for 2025:
+
+```sql
+select distinct
+    e.data_source,
+    e.person_id,
+    m.year_month
+from medical_eligibility_span as e
+inner join calendar_month as m
+    on e.coverage_start_date <= m.month_end_date
+    and coalesce(e.coverage_end_date, date '2025-12-31')
+        >= m.month_start_date
+where m.month_start_date >= date '2025-01-01'
+    and m.month_end_date <= date '2025-12-31'
+```
+
+Here, the source contract says a null end date means coverage remains open, and the analysis deliberately stops on December 31, 2025. Neither assumption should be inferred from a null by default. A missing date caused by a mapping error needs investigation, not an artificial period of coverage.
+
+`DISTINCT` prevents overlapping spans for the same person and source from counting the same month twice. It does not resolve conflicting plan attributes. If the output includes payer, benefit, contract, or coverage tier, define how changes within a month are represented before adding those columns.
+
+For a fractional method, count the **union of covered days**, not the sum of the lengths of overlapping spans. Two overlapping enrollment records do not mean a person was covered twice on the same day for a population denominator.
+
+## Decide the grain before attaching attributes
+
+The natural grain depends on the question. A plan's medical PMPM might need one row per source, member, plan, and month. A population study spanning multiple payers may need a resolved person identity and a different deduplication rule.
+
+For example, a person can have both Medicare and supplemental coverage in January. Counting two policy months may be appropriate for analyzing two contracts. Counting the same person twice in a combined population denominator may not be. Keep policy exposure and person exposure distinct.
+
+Medical and pharmacy benefits also deserve separate treatment. A medical member month does not establish that pharmacy coverage is present in the supplied data. If you calculate pharmacy PMPM, identify the population whose pharmacy spending you can observe.
+
+Attributes such as age, product, provider attribution, or risk score can change. State whether a monthly attribute is measured at the beginning of the month, the end, or some other point. When a person switches products mid-month, preserving both records without an allocation rule can make product totals exceed the overall population.
+
+## Connect claims to coverage
+
+After building the denominator, match claims to the appropriate member month using the selected person identity, source, benefit, and date convention. Keep enrolled people without claims in the analytic population.
+
+A claim without a matching member month is a useful diagnostic. It might reflect late enrollment changes, missing coverage, a source identifier mismatch, or a payment date that falls after coverage ended. Count these claims and quantify their cost. Silently removing them can make a result look more precise while making it less complete.
+
+Also keep **measurement time** separate from **knowledge time**. A January member month can change when a retroactive termination arrives in April. A report reproduced from the latest eligibility file may therefore differ from the one published in March. Preserve the source revision or extraction cutoff needed to explain that difference.
+
+## Use the denominator consistently
+
+Member months support both cost and utilization rates. If a population contributes 6,000 medical member months and has 250 emergency department visits, it has 500 member years of exposure:
+
+$$
+\text{Visits per 1,000 member years}
+=
+\frac{250}{6{,}000 / 12} \times 1{,}000
+=
+500
+$$
+
+This annualizes an exposure-based rate. It does not predict that exactly 500 visits will occur in the next year, and it does not adjust for seasonal use or differences in health status. The [ED analytics chapter](ed-visits.qmd) develops that distinction further.
+
+Before using a member-month table, reconcile its person counts and exposure against the source. Look for duplicate keys, coverage beyond the chosen cutoff, unexpected month-to-month changes, and differences introduced by partial-month rules. A small hand-worked example like the one above is a powerful check: it makes the intended behavior explicit before you apply it to millions of records.
+
+## A walkthrough
+
+This Tuva video introduces the calculation with an enrollment example. Use the definitions in this chapter when adapting the example to your source.
+
+<iframe class="video" src="https://www.youtube.com/embed/UNjUwevyBDk" title="Member months: how to calculate coverage exposure" loading="lazy" allowfullscreen></iframe>

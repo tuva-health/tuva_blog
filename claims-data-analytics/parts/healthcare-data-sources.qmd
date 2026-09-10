@@ -1,0 +1,15 @@
+# Part 1: Healthcare Data Sources {.unnumbered}
+
+::: {.part-intro}
+Before we analyze claims, we need to understand what the records represent and how they arrived in our data.
+:::
+
+In this part, we'll follow a healthcare service through billing and adjudication, then examine the data that process leaves behind. We'll also look at eligibility, provider information, and code sets—the context that makes the claim interpretable.
+
+Imagine a patient goes to the hospital. The hospital submits a facility claim. Physicians may submit separate professional claims. The payer adjudicates them at different times, and a later correction may replace one of the records. The coverage arrangement affects which services are billed to that payer, including claims it may ultimately deny. Provider identifiers describe roles such as billing for a service or delivering it. None of those files is a ready-made record of “one hospital visit.”
+
+This distinction will guide the chapters that follow. We'll learn to separate a service from a bill, a bill from a payment, and an absence of records from an absence of care.
+
+[How claims are created](../data-sources/claims-data/intro-to-claims.qmd) gives us the starting point. [Eligibility and enrollment](../data-sources/member-and-enrollment-data.qmd) defines the population we can observe. [Headers and lines](../data-sources/claims-data/header-line.qmd) and [key data elements](../data-sources/claims-data/key-data-elements.qmd) explain how to read the records. [Adjustments, denials, and reversals](../data-sources/claims-data/adjustments-denials-reversals.qmd) and [claims lag](../data-sources/claims-data/incurred-paid-runout.qmd) explain why the same period can look different in a later extract. We finish with [provider data](../data-sources/provider-data.qmd) and [code sets](../code-sets.qmd).
+
+As you read, keep a source file or data dictionary nearby if you have one. Ask what one row represents, which dates control its interpretation, and whether it records an event, a change, or a current state. Those questions will prevent more analytic errors than memorizing a long list of field names.

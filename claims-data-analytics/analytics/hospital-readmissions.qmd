@@ -1,190 +1,244 @@
 ---
 id: hospital-readmissions
-title: "Readmissions"
+title: "Hospital Readmissions"
+description: "Build a hospital-wide readmission measure from its population, specialty cohorts, transfers, planned-return algorithm, and patient timelines."
 ---
-Hospital readmissions are one of the most common healthcare concepts.  They are also one of the most complicated concepts to define and implement as code.  Here we provide a general overview of how to calculate a hospital readmission measure.
 
-## Overview
+A patient leaves the hospital and returns two weeks later. Counting the return sounds straightforward. But what if the patient transferred to another hospital? What if the return was for a scheduled procedure? What if there were three hospitalizations in those two weeks?
 
-There are many different ways to define hospital readmission measures.  However every readmission measure is built on two underlying concepts: the index admission and the readmission.  The index admission is a hospitalization that qualifies to be included in the readmission measure. Not all hospitalizations will meet the criteria to be index admissions and will therefore not be included in the readmission measure. For example, if a patient dies during a hospitalization, that hospitalization will not be an index admission, and will not be included in the readmission measure. There are many more pieces of logic to define if a hospitalization counts as an index admission for each different readmission measure. For example, hospitalizations for medical treatment of cancer are not index admissions.  We explain each piece of logic further below.
+Hospital readmissions are one of the most useful examples of why healthcare analytics requires more than counting events. The calculation is a fraction. Most of the work is deciding which hospitalizations belong in that fraction and how they relate to one another.
 
-To better understand these fundamental concepts, it is helpful to think of building a readmission measure as follows:
+In this chapter, we'll work through the CMS Hospital-Wide All-Cause Unplanned Readmission measure, or **HWR**. We'll build the eligible population, assign specialty cohorts, handle transfers, classify planned returns, and follow several patients through the calculation. Then we'll distinguish the observed readmission rate from the risk-standardized result CMS reports.
 
-1. Start with a data table of inpatient admissions, one record per admission.
-2. Use logic (defined further below) to compute two additional columns which you append to this table:
-    * The first column (index_admit_flag) is a binary variable that indicates whether each inpatient admission qualifies as an index admission.
-    * The second column (readmit_flag) is a binary variable that indicates whether each inpatient admission had a subsequent admission that qualifies as a readmission. 
+Our reference definition is the **2021 claims-based HWR specification, version 10.0**, including **Planned Readmission Algorithm version 4.0, 2021**. This is the specification behind the terminology used in Tuva's earlier readmissions documentation. The full CMS report is preserved in [Rhode Island's 2021 hospital measure specifications, beginning on PDF page 148](https://ohic.ri.gov/sites/g/files/xkgbur736/files/documents/2021/July/Acute-Care-Hospital-Aligned-Measure-Set-Specifications-2021-7-7.pdf#page=148). Naming the version gives us one consistent definition to explain. A production implementation also needs that release's code lists and software specifications.
 
-![Readmission Table](/img/readmissions/readmit_table.png)
+CMS also publishes the **Hybrid HWR** measure, which combines claims with clinical risk factors from electronic health records. CMS expanded that measure to include Medicare Advantage admissions beginning with the FY 2027 payment determination. These developments are documented in the [CMS hybrid methodology report](https://www.cms.gov/files/document/hybrid-hospital-wide-readmission-methodology-report-03202023.pdf) and [FY 2024 final-rule fact sheet](https://www.cms.gov/newsroom/fact-sheets/fy-2024-hospital-inpatient-prospective-payment-system-ipps-and-long-term-care-hospital-prospective-0). We use the earlier claims definition to teach the mechanics; implementing a current reporting measure means selecting its current specification and required inputs.
 
-The index admission (index_admit_flag) and readmission (readmit_flag) are then used to compute the readmission measure.  The sum of the index_admit_flag column forms the denominator of the readmission measure while the sum of the readmit_flag column forms the numerator.  In the example data table above there are 3 total inpatient admissions, 2 index admissions, and 1 readmission, resulting in a 50% readmission rate.
+## Two roles for a hospitalization
 
-![Example Readmission Rate](/img/readmissions/example_readmission_rate_calc.png)
+An **index admission** is a hospitalization that qualifies as the starting event for follow-up. A **readmission** is a subsequent hospitalization evaluated as an outcome of that index admission. HWR looks for unplanned returns to any eligible short-term acute care hospital, not just the original hospital. The reason for the return need not match the index diagnosis: this is what *all-cause* means.
 
-The different definitions of readmission measures are simply variations in the inclusion and/or exclusion criteria that define the index_admit_flag and the readmit_flag.  The most commonly used readmission measures are the CMS readmission measures.
+These are roles, not permanent labels. A hospitalization can be a readmission for one stay and an index admission for the next. It can also qualify for neither role. In HWR, a readmission becomes a new index admission if it independently meets the index eligibility rules.
 
-There are 7 such measures grouped into 3 categories:
+Start with one row per candidate index hospitalization and calculate two fields. We'll use these teaching names rather than the column names of a particular package:
 
-- All-cause Hospital-wide Readmissions (1)
-- Condition-specific Readmissions (4)
-    - Acute Myocardial Infarction
-    - Congestive Obstructive Pulmonary Disease (COPD)
-    - Pneumonia
-    - Heart Failure
-- Procedure-specific Readmissions (2)
-    - Total Hip/Knee Arthroscopy
-    - Coronary Artery Bypass Graft
+- `index_admit_flag`: whether the hospitalization belongs in the denominator.
+- `readmit_flag`: whether that eligible index hospitalization has a qualifying readmission outcome.
 
-## CMS Readmissions Algorithm
+The second flag describes what happened **after the row's hospitalization**. It does not mean that the row itself was a return from a previous stay. If we need that relationship too, we store it separately.
 
-The All-cause Hospital-wide Readmission Measure (“Hospital-wide Measure”) is the most commonly used readmission measure definition of all.  The sections that follow describe how to define and implement the Hospital-wide Measure on EHR data or claims data in your data warehouse.  This measure has also been encoded into the Tuva Project, including all necessary terminology datasets and data quality tests.
+$$
+\text{Observed readmission rate} =
+\frac{\text{Eligible index admissions with a qualifying readmission}}
+{\text{Eligible index admissions}}
+$$
 
-### Data Requirements
+For example, three hospitalizations might contain two eligible index admissions, one of which has a qualifying readmission. The observed rate is $1 / 2 = 50\%$. The denominator is hospitalizations, not unique patients, claim lines, or member months. Each eligible index contributes at most one numerator event.
 
-The Hospital-wide Measure can be implemented on either EHR data or claims data.  Strictly speaking, CMS developed the Hospital-wide Measure to run on Medicare FFS claims data, but CMS explicitly states in their documentation that the measure may be adapted to run against an all-payer patient population.
+## Choose the measure before choosing the code
 
-The data elements needed to process the readmission measure are listed below. 
+HWR is one member of a larger family of readmission measures. The Hospital Readmissions Reduction Program, or **HRRP**, uses condition- and procedure-specific measures for acute myocardial infarction, chronic obstructive pulmonary disease, heart failure, pneumonia, coronary artery bypass graft surgery, and elective primary total hip or knee arthroplasty. HWR is associated with the Hospital Inpatient Quality Reporting program and is not an HRRP measure. [CMS explains this distinction in its readmissions program overview](https://www.cms.gov/medicare/quality/value-based-programs/hospital-readmissions).
 
-- patient
-    - person_id
-    - gender
-    - birth_date
-- encounter
-    - encounter_id
-    - person_id
-    - encounter_start_date
-    - encounter_end_date
-    - discharge_disposition_code
-    - location
-    - ms_drg
-    - encounter_type
-- condition
-    - encounter_id
-    - code
-    - diagnosis_rank
-    - code_type
-    - condition_type
-- procedure
-    - encounter_id
-    - procedure_code
-    - code_type
-    
-### Terminology Datasets
+The distinction affects the calculation. A condition-specific measure begins with a defined clinical population; HWR begins with a much broader set of inpatient stays. Rules for allowing a readmission to become another index admission also differ. We cannot build HWR by adding together the numerators and denominators from the condition-specific measures.
 
-The Hospital-wide Measure requires several terminology datasets that are used as lookup tables to create the index admission and readmission. The following is a complete list of the terminology datasets that are needed:
+An all-payer analysis can use the same basic framework. However, removing the Medicare enrollment requirements, including younger patients, or using one health system's EHR changes the measured population or the ability to observe outcomes. Those are useful adaptations when stated clearly. Neither the chapter nor a Tuva output table, by itself, establishes conformity with a particular CMS reporting measure.
 
-![Terminology Datasets](/img/readmissions/terminology_datasets.png)
+## Build the inpatient stay table
 
-CMS makes these terminology datasets available as files on the quality net website.  The links below download two Excel spreadsheets that include all the terminology datasets listed above.
-- https://qualitynet.cms.gov/files/60943ca9fd340b002259fe16?filename=2021_HWR.xlsx
-- https://qualitynet.cms.gov/files/6092ab86fd340b002259fda0?filename=YaleMod_CCS_PCS_CM_Map_v2020.xlsx
+Before applying the measure, construct a reliable table of short-term acute inpatient hospitalizations. A hospital stay can generate several institutional bills and many professional claims. Replacements, interim bills, and overlapping records can make one stay appear to be several. Resolve the relevant claim versions and use the [encounter grouping logic](../claims-groupers-and-algos/encounters.qmd) before looking for returns.
 
-These terminology datasets are already included in the Tuva Project.
+The working data need more than admission and discharge dates:
 
-### Index Admission Algorithm
+| Information | What it establishes |
+|---|---|
+| Person identifier, source, birth date, and death information | Patient continuity, age eligibility, and survival |
+| Enrollment periods and coverage type | Required history and the ability to observe subsequent care |
+| Stay identifier and underlying claim identifiers | One clinical event with a traceable set of source records |
+| Hospital identifier and facility type | Attribution, transfers, and eligible care settings |
+| Admission date, discharge date, and claim FROM date | The stay interval and the measure's outcome timing |
+| Discharge disposition | Death, leaving against medical advice, and discharge setting |
+| Principal and secondary discharge diagnoses, with coding system and present-on-admission information where required | Cohort assignment, exclusions, planned classification, and risk factors |
+| All relevant inpatient procedure codes, with coding system | Surgery/gynecology assignment and planned classification |
 
-The index admission algorithm is the set of sub-algorithms (i.e. rules) that together determine whether an inpatient admission qualifies as an index admission (i.e. receives an index_admit_flag = 1 or 0).  Not every inpatient admission qualifies as an index admission. 
+Diagnoses and procedures must be linked to the correct stay. The principal discharge diagnosis has a different role from a secondary diagnosis; a diagnosis found anywhere in a patient's history cannot substitute for it. Likewise, the procedure logic evaluates the relevant procedures performed during the hospitalization, not an arbitrary first procedure.
 
-Here are the sub-algorithms used by the Hospital-wide Measure:
+Separate data-quality failures from clinical exclusions. An invalid discharge date is not the same as a valid hospitalization excluded for rehabilitation. The CMS report describes preprocessing for ineligible facilities and provider identifiers, overlapping claims, stays longer than one year, and enrollment-record problems. Preserve the reason a record leaves the calculation so changes in data quality do not look like changes in patient outcomes.
 
-1. Cohort Inclusion Algorithm
-2. Cohort Exclusion Algorithm
-3. Discharged Alive and Not Against Medical Advice
-4. Not a Transfer
-5. Not a Same Day Readmission
-6. Run-out
+## Determine which stays can be index admissions
 
-If an inpatient admission meets the criteria from all of these sub-algorithms then it qualifies as an index admission.  Otherwise it does not.  Below we walk through each sub-algorithm.
+Index eligibility combines population requirements, clinical exclusions, specialty assignment, and the handling of contiguous stays. We'll consider each in turn.
 
-### Cohort Inclusion Algorithm
+### Population and observation requirements
 
-The cohort inclusion algorithm is a set of rules that determine whether an inpatient admission belongs to 1 or more specialty categories.  In order to qualify as an index admission, an inpatient admission must belong to 1 or more of these 5 specialty categories:
+For the ordinary Medicare FFS population in the reference specification, an index admission must involve a patient aged 65 or older who has Part A FFS enrollment for the twelve months before admission and during the hospitalization. The patient must be discharged alive from an eligible short-term acute care hospital and have thirty days of post-discharge FFS enrollment, subject to the death exception below.
 
-1. Medicine
-2. Cardiorespiratory
-3. Cardiovascular
-4. Neurology
-5. Surgery / Gynecology
+The twelve-month requirement supports the assessment of prior comorbidities. The post-discharge requirement supports outcome observation. These requirements answer different questions, and neither can be inferred from the presence of a claim.
 
-Here are the steps to implement the cohort inclusion algorithm:
+The 2021 specification also includes VA administrative data. VA beneficiaries hospitalized in VA hospitals do not need Medicare FFS enrollment. VA beneficiaries hospitalized in non-VA hospitals must have FFS Part A at the index admission, but do not need the ordinary twelve-month prior enrollment. The thirty-day post-discharge FFS enrollment exclusion applies to non-VA beneficiaries. An analyst using only Medicare claims should not assume that missing VA care is observable.
 
-1. Each inpatient admission should have 1 primary ICD-10-CM diagnosis code and 0 or more ICD-10-PCS procedure codes associated with it. 
+A patient who dies during the index hospitalization cannot be readmitted after discharge, so that stay is excluded. Death **after** discharge is handled differently: an otherwise eligible stay remains eligible when death prevents a full thirty days of post-discharge enrollment. A qualifying return before that death still counts. These population rules and exceptions appear in [section 2.2.1 of the reference specification](https://ohic.ri.gov/sites/g/files/xkgbur736/files/documents/2021/July/Acute-Care-Hospital-Aligned-Measure-Set-Specifications-2021-7-7.pdf#page=156).
 
-2. Map each of these codes to the custom CCS Condition Categories (terminology datasets #8 and #9).  Now each inpatient admission should have its corresponding CCS diagnosis and procedure categories assigned. 
+### Clinical exclusions and specialty cohorts
 
-3. For each inpatient admission, map its assigned CCS diagnosis and procedure categories to those listed in the HWR Specialty Cohort Inclusion terminology dataset (terminology dataset #1) to determine if it should be assigned to any of the first 4 specialty categories (medicine, cardiorespiratory, cardiovascular, and neurology).
+Exclude stays at PPS-exempt cancer hospitals and stays ending against medical advice. Also apply the specified principal-diagnosis exclusions for psychiatric treatment and the rules identifying rehabilitation admissions. These are specific exclusions, not a reason to exclude every patient who has any mental health condition or receives any rehabilitation service.
 
-4. For each inpatient admission, map its ICD-10-PCS codes to those listed in the HWR Surg-Gyn Cohort Inclusion terminology dataset (terminology dataset #2) to determine if the readmission should be assigned to the Surgical / Gynecology specialty category.
+Rehabilitation cannot be identified reliably from the principal diagnosis alone in ICD-10 data. The reference specification also uses facility and provider information, discharge disposition and timing, and rehabilitation revenue-center codes to identify relevant rehabilitation stays and transfers. These rules affect both the index population and the removal of rehabilitation transfers from the readmission search. An inpatient rehabilitation unit can share a hospital identifier with an acute care hospital; treating every record under that identifier as acute inpatient care creates false readmissions. The additional rules are documented in [Appendix C of the reference report](https://ohic.ri.gov/sites/g/files/xkgbur736/files/documents/2021/July/Acute-Care-Hospital-Aligned-Measure-Set-Specifications-2021-7-7.pdf#page=199).
 
-5. Inpatient admissions are successfully assigned to one or more specialty categories based on steps 3 and 4 pass this algorithm.  Otherwise the admission fails and is no longer a candidate for an index admission.
+Medical treatment of cancer requires particular care. The algorithm distinguishes it from surgical treatment of cancer. A patient undergoing a qualifying major cancer surgery can enter the surgery/gynecology cohort. A patient with cancer admitted for another eligible condition can also remain in the measure. A blanket `has_cancer = 1` exclusion removes too many stays.
 
-Here is a diagram of the cohort inclusion algorithm:
+The five specialty cohorts are **mutually exclusive**. Each eligible index admission receives one assignment:
 
-![Cohort Inclusion Algorithm](/img/readmissions/cohort_inclusion_algorithm.png)
+| Specialty cohort | Examples of the types of admissions it contains |
+|---|---|
+| Surgery/gynecology | Qualifying major surgery, such as coronary artery bypass graft surgery, cholecystectomy, or hip replacement |
+| Cardiorespiratory | Heart failure, pneumonia, and chronic obstructive pulmonary disease |
+| Cardiovascular | Acute myocardial infarction and other specified cardiovascular conditions |
+| Neurology | Stroke and other specified neurologic conditions |
+| Medicine | Remaining eligible medical conditions, such as septicemia, urinary tract infection, or acute renal failure |
 
-### Cohort Exclusion Algorithm
+The assignment has an order. After the general exclusions, first check whether any procedure belongs to the surgery/gynecology inclusion list. A qualifying surgical procedure takes precedence over the principal diagnosis. Among the remaining nonsurgical stays, exclude the specified medical-treatment-of-cancer categories, then use the principal discharge diagnosis to assign the appropriate medical cohort.
 
-An inpatient admission does not qualify as an index admission if the primary reason for the index admission was related to cancer, rehabilitation, or mental health.  These categories are defined in the HWR Cohort Exclusion terminology dataset (terminology dataset #3).  In order to use this dataset, first map all primary ICD-10-CM codes to the Custom CCS mapping dataset and then lookup whether each inpatient admission had any of these CCS condition categories.
+For example, a stay containing both a cardiovascular principal diagnosis and a qualifying bypass procedure belongs to surgery/gynecology. Assigning it to both cohorts would count it twice and give it two risk-model assignments. The hierarchy is shown in [the CMS cohort flowchart](https://ohic.ri.gov/sites/g/files/xkgbur736/files/documents/2021/July/Acute-Care-Hospital-Aligned-Measure-Set-Specifications-2021-7-7.pdf#page=205).
 
-Inpatient admissions that do not map to any of these CCS condition categories pass this criteria for inclusion as an index admission.
+### Keep the terminology with the algorithm
 
-### Discharged Alive and Not Against Medical Advice
+The cohort labels are convenient names for code-defined populations. Implementation requires the corresponding lookup tables:
 
-In order to qualify as an index admission the inpatient admission must not have a discharge status of 20 (‘expired’) or 07 (‘left against medical advice’). 
+| Terminology | Use |
+|---|---|
+| ICD-10-CM and ICD-10-PCS mappings to the measure's CCS categories | Translate diagnosis and procedure codes into the categories used by the rules |
+| Specialty-cohort and surgery/gynecology inclusion lists | Assign each eligible stay to one cohort, including individually specified procedure codes |
+| Cohort-exclusion categories | Identify the specified clinical exclusions |
+| Always-planned diagnosis and procedure categories | Identify the first branch of planned classification |
+| Potentially planned procedure categories and individual procedure codes | Identify procedures requiring the acute-diagnosis check |
+| Acute diagnosis categories and individual diagnosis codes | Prevent potentially planned procedures from making an acute return planned |
+| Risk-factor mappings and complication rules | Construct the separate risk-standardization inputs |
 
-### Not a Transfer
+The historical measure uses CMS/Yale-modified CCS mappings and supplemental lists. A newer grouper with a similar name is not automatically an equivalent replacement. Record the measure release, mapping release, and clinical code versions together. An unmapped principal diagnosis is a data problem to investigate; absence from an exclusion list does not establish eligibility.
 
-Inpatient admissions that result in the patient being transferred to another acute care facility do not count as index admissions.  However, the subsequent transfer does count as an index admission if:
+## Resolve transfers and same-day returns
 
-- The patient is discharged alive and not against medical advice
-- The patient is discharged to a non-acute care setting (e.g. home, SNF, etc.)
+Two hospital bills close together can describe one continuous episode of acute care. The reference measure identifies a transfer when a patient enters a **different** short-term acute care hospital on the discharge date or the following calendar day. Neither a transfer discharge code nor a matching diagnosis is required for that timing rule.
 
-Importantly, the transfer does not necessarily have to meet the other index admission criteria.  For example, the transfer does not have to pass the cohort inclusion algorithm as long as the initial admission does.
+Consider this sequence:
 
-A transfer is defined as occurring if a patient is discharged from an acute care hospital and admitted to another acute care hospital on the same day or the following day.  No other criteria such as discharge status or admit source is required to define a transfer.
+| Stay | Hospital | Admission | Discharge and destination |
+|---|---|---|---|
+| T1 | North | January 2 | January 5; transfer |
+| T2 | South | January 6 | January 10; home |
+| T3 | East | January 20 | January 23; home |
 
-### Not a Same-day Readmission
+T1 and T2 form a transfer episode. T1 does not become a separate index admission. The terminal stay at South is the candidate index, and its January 10 discharge starts follow-up. Assuming the other requirements are met and T3 is unplanned, the January 20 return is attributed to South. It occurs ten days after final discharge. Counting the move from North to South as a readmission would create an outcome while the patient was still receiving the original course of acute care.
 
-An inpatient admission is not considered an index admission if the patient is readmitted to the same hospital on the same day they were discharged from a previous admission for the same condition. In this situation, the readmission itself qualifies as the index admission.
+Transfer-in status does not itself disqualify the terminal stay. But it does not establish eligibility either: apply the measure's remaining rules to the final candidate, with the required transfer-episode information. Do not assume that a qualifying first hospital record automatically makes every subsequent record an eligible index.
 
-### Run-out
+Same-day returns to the **same** hospital have a separate rule. If the patient returns on the discharge date for the same diagnosis, CMS treats the records as one continuous admission. A same-day return for a different diagnosis can be a readmission if it meets the outcome rules. This is why a universal `next_admission_date > discharge_date` condition is insufficient. Use the measure's diagnosis comparison and retain the underlying records when combining stays. [CMS documents the transfer and same-day rules on these consecutive pages](https://ohic.ri.gov/sites/g/files/xkgbur736/files/documents/2021/July/Acute-Care-Hospital-Aligned-Measure-Set-Specifications-2021-7-7.pdf#page=158).
 
-In order to qualify as an index admission, the admission must occur at least 30 days before the last date of discharge in the dataset.
+## Establish the thirty-day window
 
-For example, suppose your dataset contains inpatient admissions that occurred in calendar year 2018.  Without this rule, admissions in this dataset that occurred on the last date in the dataset (i.e. December 31, 2018) could be flagged as index admissions but would never have an associated readmission because the data does not exist.  As a result the readmission measure for the month of December 2018 would be artificially low (there would be a typical number of index admissions but fewer than typical readmissions simply because the data does not exist).
+The follow-up window begins at **discharge**, after resolving any continuous episode. Time spent in the index hospitalization does not consume the thirty days after discharge. A return on day 30 is within the window; one on day 31 is outside it. Same-day cases require the rules we just discussed.
 
-### Planned Admission Algorithm
+There is another important date distinction. The reference claims specification uses the subsequent inpatient claim's **FROM date** to establish when the return episode began. That date can precede the inpatient admission date when outpatient care at the same hospital begins within three days before admission and is combined into the inpatient claim.
 
-The planned readmission algorithm is used to exclude planned admissions from being flagged as readmissions in the Hospital-wide Measure. Terminology datasets #4-7 are used in this algorithm.
+Suppose an index stay ends January 1. The patient returns to the same hospital's emergency department January 30, becomes an inpatient February 1, and the care is combined into one inpatient claim with a January 30 FROM date. The return begins on day 29 for this calculation, even though inpatient admission is on day 31. It can therefore qualify. An ED visit or observation stay that never becomes an inpatient hospitalization does not qualify on its own. The bundled-care timing rule is described in [section 2.2.2 of the CMS report](https://ohic.ri.gov/sites/g/files/xkgbur736/files/documents/2021/July/Acute-Care-Hospital-Aligned-Measure-Set-Specifications-2021-7-7.pdf#page=159).
 
-Here are the steps to implement the algorithm:
+Keep three different time requirements visible:
 
-1. This algorithm requires mapping the primary ICD-10-CM code to the custom CCS diagnosis categories and all the ICD-10-PCS codes to the custom CCS procedure categories for each inpatient admission (terminology datasets #8 and #9).
+1. **Lookback:** the history needed to establish population eligibility and prior risk factors.
+2. **Follow-up:** the period in which a qualifying return can occur after discharge.
+3. **Claims runout:** the additional time needed for care during follow-up to reach the extract.
 
-2. For each inpatient admission, check whether the CCS diagnosis and procedure categories fall under the "always planned" list of diagnoses and procedures (terminology datasets #4 and #5). If any match occurs, this is a planned admission.
+A December 31 index discharge needs outcome observation through January 30 and enough runout for those claims to arrive. The last discharge date found anywhere in the dataset does not prove that follow-up is complete. A single recent claim can be present while many earlier claims are still missing. Use a documented data-completeness cutoff, enrollment information, and the source's delivery pattern, as discussed in [incurred dates, paid dates, and runout](../data-sources/claims-data/incurred-paid-runout.qmd).
 
-3. For each inpatient admission, check whether the CCS procedure categories and ICD-10-PCS codes fall under the list of potentially planned procedures (terminology dataset #6). If any match occurs, check whether this patient had any primary ICD-10-CM code or CCS diagnosis category that is considered an "always acute" code (terminology dataset #7). If the answer is no, this is a planned admission.
+## Classify the return as planned or unplanned
 
-4. Inpatient admissions that do not qualify as planned admissions based on steps #2 and #3 above are considered unplanned.
+Scheduled care may be appropriate after discharge. HWR therefore excludes planned returns from the outcome. But the billing label *elective* is not the planned-readmission algorithm, and an often-scheduled procedure can also be performed during an emergency.
 
-Here is a diagram of the algorithm:
+The algorithm evaluates the **return hospitalization's** principal discharge diagnosis and procedures. Its branches have a defined order:
 
-![Planned Admission Algorithm](/img/planned_admission_algo.jpg)
+| Step | Test | If yes | If no |
+|----|-------------------------|----------|----------|
+| 1 | Does an always-planned procedure or principal diagnosis match? | Planned | Continue to step 2 |
+| 2 | Is a potentially planned procedure present? | Continue to step 3 | Unplanned |
+| 3 | Is the principal diagnosis on the acute-diagnosis list? | Unplanned | Planned |
 
-### Unplanned Readmission Algorithm
+**First, evaluate the always-planned lists.** A procedure in an always-planned category makes the return planned regardless of diagnosis. An always-planned principal diagnosis also makes it planned. These are limited, enumerated categories, including specified transplant procedures, maintenance chemotherapy/immunotherapy, and rehabilitation. A history of transplantation or cancer is not the same as receiving the listed care during this stay.
 
-An admission that occurs within 30 days of an index admission is considered a readmission if it meets the criteria below:
+**Next, evaluate potentially planned procedures.** If the first branch did not apply, look for a procedure in the potentially planned list. This includes both procedure categories and individually specified codes. Without a match, classify the return as unplanned.
 
-- Not a Planned Readmission
-- Does Not Follow a Planned Readmission
-- Not a Multiple Readmission
+**Finally, check the principal diagnosis for acute illness or complications.** A potentially planned procedure results in a planned classification only when the principal diagnosis is absent from the specified acute-diagnosis lists. A secondary acute diagnosis does not substitute for the principal-diagnosis test. Conversely, a chronic condition elsewhere on the claim does not override an acute principal diagnosis.
 
-Planned readmissions are excluded from the readmission measure, as described in the previous section.
+For a synthetic example, suppose a return has a procedure on the potentially planned list. With a non-acute principal diagnosis, and no always-planned match, the algorithm labels it planned. Change only the principal diagnosis to one on the acute list and the result becomes unplanned. The presence of the procedure has not changed; the reason for the hospitalization has.
 
-In a chain of readmissions, where the planned readmission occurs before an unplanned readmission, the unplanned readmission does not qualify as a readmission.
+The always-planned branch takes precedence. Applying a blanket acute-diagnosis override to every return would implement a different algorithm. These branches are specified in [section 2.2.3 and Appendix E of the 2021 report](https://ohic.ri.gov/sites/g/files/xkgbur736/files/documents/2021/July/Acute-Care-Hospital-Aligned-Measure-Set-Specifications-2021-7-7.pdf#page=160). Missing diagnoses or procedure data require investigation; they should not silently become evidence that a stay was unplanned.
 
-![Unplanned Readmission 1](/img/readmissions/unplanned_readmission_1.png)
+## Follow the sequence without skipping stays
 
-In a chain of readmissions, where two or more unplanned readmissions follow an index admission, only the first unplanned readmission qualifies as a readmission.  This is because the readmission flag is binary.
+After resolving transfers and continuous stays, identify the first subsequent short-term acute inpatient hospitalization in the outcome window. Apply the measure's care-setting rules, but do not require this return to qualify as a new index admission. Preserve its planned classification. Do not remove planned stays and then search for the next unplanned stay.
 
-![Unplanned Readmission 2](/img/readmissions/unplanned_readmission_2.png)
+Suppose one patient has these hospitalizations:
+
+| Stay | Admission | Discharge | Planned classification |
+|---|---|---|---|
+| A | January 2 | January 5 | Not needed to evaluate A's subsequent outcome |
+| B | January 12 | January 15 | Planned |
+| C | January 20 | January 23 | Unplanned |
+
+B is the first return after A. Because B is planned, A does not receive a qualifying readmission outcome. C occurs fifteen days after A's discharge, but it is **not attributed to A**. The intervening planned hospitalization may have contributed to C, so the algorithm does not skip B and connect A directly to C.
+
+C can still be a readmission for B. If B independently qualifies as an index admission, its January 15 discharge starts a new window, and C occurs five days later. Being planned as a return from A does not, by itself, prohibit B from being an index. If B fails an index exclusion, such as the exclusion for medical treatment of cancer, it does not enter the denominator; C still does not become A's outcome.
+
+Now change B to unplanned. A receives one qualifying outcome, represented by B. If B qualifies as an index, C is B's outcome. A does not receive a second numerator event for C, and C is not attributed to both A and B. The two rules work together: one outcome per index, while preserving the sequence of acute inpatient returns. The [CMS hybrid methodology report, section 2.3](https://www.cms.gov/files/document/hybrid-hospital-wide-readmission-methodology-report-03202023.pdf#page=14), also explains this sequence and index reuse explicitly.
+
+Index eligibility and outcome eligibility remain separate throughout. For example, an unplanned return ending in death can be the outcome for an earlier eligible index stay, even though that return cannot start a new index window. Filtering the entire stay table to index-eligible rows before finding returns would lose it.
+
+## Calculate the observed rate
+
+Here is a small synthetic result after the rules have been applied. P1, P2, and P3 belong to the same patient. Q1 and R1 belong to two other patients. These are all candidate index stays in this example, and required history and mature outcome data are available except where stated.
+
+| Candidate index | Discharge | First subsequent acute inpatient return | Eligible index | Qualifying outcome |
+|---|---|---|---:|---:|
+| P1 | January 5 | P2 on January 16; unplanned | 1 | 1 |
+| P2 | January 18 | P3 on January 25; unplanned | 1 | 1 |
+| P3 | January 27 | None within thirty days | 1 | 0 |
+| Q1 | January 10 | None within thirty days | 1 | 0 |
+| R1 | March 25 | Unknown; complete data end March 31 | 0 | Not evaluated |
+
+There are **four eligible index admissions and two qualifying outcomes**, for an observed rate of $2 / 4 = 50\%$. P1's return occurs eleven days after discharge. P2's return occurs seven days after discharge. P3 is twenty days after P1's discharge, but P1 still contributes only one outcome.
+
+Counting eligible people would produce a denominator of two rather than four and answer a different question. Treating R1 as an index with no return would produce $2 / 5 = 40\%$, a lower rate caused entirely by incomplete follow-up.
+
+For reporting by month, group eligible index admissions by their final discharge month and attach each outcome to that index month. A January discharge followed by a February readmission contributes to January's numerator and denominator. Grouping the numerator by the return month while grouping the denominator by index discharge month breaks the fraction.
+
+## Understand risk standardization
+
+The observed rate answers a descriptive question: what proportion of these eligible index admissions had the defined outcome? It does not account for differences in the patients and services at different hospitals.
+
+The reference HWR measure estimates a separate hierarchical logistic regression model for each specialty cohort. The models account for patient risk and a hospital-specific effect. Risk factors include age and specified comorbidities; service mix is represented using the measure's diagnosis groupings. Comorbidities are drawn from the index stay and the preceding twelve months of inpatient history under rules intended to avoid adjusting away complications caused during the index hospitalization.
+
+For each hospital and specialty cohort, the model calculates:
+
+- **Predicted readmissions:** the sum of modeled readmission probabilities for that hospital's patients, using its estimated hospital effect.
+- **Expected readmissions:** the sum for the same patients using the average hospital effect.
+
+Their ratio is the specialty cohort's standardized readmission ratio. The hospital-wide calculation combines those ratios using a **volume-weighted geometric mean**, then multiplies by the national observed readmission rate:
+
+$$
+\text{HWR risk-standardized rate} =
+\text{Combined standardized readmission ratio}
+\times \text{National observed rate}
+$$
+
+For illustration, a combined ratio of 0.90 and a national observed rate of 15% produce a risk-standardized rate of 13.5%. The hospital's own observed rate need not be 13.5%. This example assumes the combined ratio has already been estimated; dividing observed events by expected events, or dividing a crude rate by a patient's HCC score, does not reproduce the CMS calculation.
+
+CMS also constructs interval estimates and applies reporting-volume rules. In the reference version, hospital comparisons use the 95% interval relative to the national observed rate; fewer than 25 eligible cases prevents public reporting of the hospital's rate and interval. A small difference between two point estimates does not establish a meaningful difference in performance. The model, geometric combination, and reporting rules are described in [sections 2.2.6–2.2.7 and Appendix A](https://ohic.ri.gov/sites/g/files/xkgbur736/files/documents/2021/July/Acute-Care-Hospital-Aligned-Measure-Set-Specifications-2021-7-7.pdf#page=162).
+
+## Make each decision inspectable
+
+A useful readmission table preserves the logic behind its flags. Keep the candidate stay, patient and source keys, final attributed hospital, cohort assignment, individual exclusion reasons, final discharge date, observation and extraction cutoffs, first subsequent stay, elapsed days, planned-classification branch, and measure and terminology versions. Keep the claims supporting transfer and same-day consolidation as well.
+
+For implementation in Tuva, the [Quality Measures documentation](https://www.thetuvaproject.com/data-marts/quality-measures) is the entry point for installation, readmission outputs, and example queries. Use its documented column names and package definitions when querying those outputs; the two flag names used in this chapter explain the calculation.
+
+Review patient timelines alongside aggregate counts. Particularly useful cases include day 30 versus day 31, a same-day return with the same versus a different diagnosis, a transfer without a transfer discharge code, a planned return followed by an unplanned one, a readmission that becomes another index, and a return that ends in death. These cases expose errors that a plausible overall percentage can hide.
+
+A readmission does not establish that the earlier care was poor or that the return was preventable. It identifies an outcome under a defined set of rules. Report the eligible index count and outcome count with the rate, and name the population, measure version, follow-up period, and claims cutoff. That gives a clinical reviewer enough context to investigate the result and another analyst enough information to reproduce it.

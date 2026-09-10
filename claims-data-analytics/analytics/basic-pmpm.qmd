@@ -1,56 +1,125 @@
 ---
 id: basic-pmpm
 title: "Cost Metrics (PMPM)"
+description: "Define cost, match it to enrollment, and use PMPM to understand spending across populations and time."
 ---
 
-# Understanding PMPM in Healthcare
+Healthcare spending grows when more people are covered, when people receive more care, or when the care they receive costs more. Before we investigate those explanations, we need to account for how many people were covered and for how long.
 
-## What is PMPM?
-**PMPM** stands for **Per Member Per Month**.  
-It is a common financial and utilization metric used in healthcare to normalize costs across a population over time. By standardizing results to a monthly, per-member basis, PMPM allows organizations to compare performance across groups of different sizes, risk profiles or time periods.
+In this chapter, we'll use **per-member-per-month cost**, or **PMPM**, to do that. We'll calculate it, break it into components, and examine why changing the denominator changes the question we are answering.
 
----
+## Start with the question
 
-## Why PMPM is Important
-- **Standardization**: Adjusts for differences in population size and enrollment duration.
-- **Comparability**: Enables consistent comparisons across health plans, providers, and programs.
-- **Budgeting & Forecasting**: Helps payers and providers model expected costs and monitor financial performance.
-- **Performance Measurement**: Used in contracts, quality programs, and benchmarking to evaluate efficiency and value.
+PMPM is a ratio:
 
----
+$$
+\text{PMPM} = \frac{\text{Cost for the population and period}}{\text{Member months for the same population and period}}
+$$
 
-## How PMPM is Calculated
-The general formula is:
+If 1,000 people are covered for all twelve months of a year, they contribute 12,000 member months. If their measured cost is $10 million, PMPM is $833.33. A person with no claims still contributes member months. We are measuring spending across the covered population, including people who used no services.
 
-**PMPM = Total Cost / Member Months**
+This adjustment accounts for enrollment size and duration. It does **not** adjust for health status, benefit design, provider prices, age, or geography. A lower PMPM by itself does not establish that one population received more efficient care.
 
-Where:
-- **Total Cost** = the dollar value of interest (e.g., total paid claims, allowed charges, pharmacy spend, etc.)
-- **Member Months** = the denominator, calculated as the sum of all enrolled members across all months in the measurement period. See [member month section](/claims-data-analytics/analytics/member-months.html) for more details. 
+Before calculating the ratio, write down what “cost” means. **Plan-paid PMPM** describes amounts paid by the plan under the chosen claims accounting rules. **Allowed PMPM** describes the recognized amount for covered services under the source's definition, often including both plan payment and member responsibility. **Billed charges** describe what providers submitted. These amounts answer different questions and should be labeled accordingly. The [key data elements chapter](../data-sources/claims-data/key-data-elements.qmd) explains their relationships.
 
-For example:
-- If 1,000 members are enrolled for the entire year, that equals **12,000 member months**.
-- If the total spend is **$10,000,000**, then: 
+Claims may also leave out relevant payments. Capitation, settlements, rebates, incentives, or other non-claim transactions may live elsewhere. Adding medical and pharmacy paid claims does not automatically produce a complete measure of an organization's healthcare expense.
 
-PMPM = $10,000,000 / 12,000 = $833
+## Align the cost and the coverage
 
+The numerator and denominator must describe the same population, benefit, and period. Medical cost divided by medical member months is a coherent starting point. Pharmacy cost divided by all medical member months can be misleading when some people do not have pharmacy coverage in the data.
 
-## 2 ways to think about PMPM
+The time basis matters too. An incurred analysis assigns cost to when care occurred, using a documented service-date convention. A paid analysis assigns cost to when payment occurred. Both can be useful, but they measure different things. An incurred trend also needs an **as-of date**: January services observed through March will be less mature than January services observed through December. See [claims lag and runout](../data-sources/claims-data/incurred-paid-runout.qmd).
 
-### Contributive PMPM
+A long hospital stay makes the timing choice concrete. If it begins in January and ends in February, assigning the entire stay to its start month and allocating its cost across service months produce different monthly results. Neither convention is implied by the acronym PMPM. Choose a convention for the analysis, describe it, and apply it consistently.
 
-In most medical economic or actuarial analysis when the objective is to understand the drivers of healthcare cost in a given population, PMPM cost is summarized at a population level, and then broken down across different dimensions such as service categories or conditions to understand their contribution to the total PMPM. In this type of *contributive* PMPM, values are ALWAYS divided by the total population member months so that PMPM for all sub-groups sum to the total PMPM.
+Some claims will not match a covered member month. Those records may reveal retroactive enrollment, incomplete eligibility, a mismatch in benefit coverage, or a difference between service and payment dates. Quantify their count and cost before excluding them. Otherwise, a clean-looking ratio can conceal a material reconciliation gap.
 
-Taking our 1,000 member population enrolled for the entire year and total spend of $10,000,000 again as the example:
+## Two denominators, two questions
 
-- Total PMPM = $10,000,000 / 12,000 = $833
-- Inpatient PMPM = $4,000,000 / 12,000 = $333
-- Office-based PMPM = $2,500,000 / 12,000 = $208
-- Outpatient PMPM = $2,500,000 / 12,000 = $208
-- Ancillary PMPM = $500,000 / 12,000 = $42
-- Other PMPM = $500,000 / 12,000 = $42
-- The sum of each service category PMPM equals the total PMPM: $333 + $208 + $208 + $42 + $42 = $833
+We often use PMPM to break down cost. There are two distinct ways to do this, and both are useful.
 
-### Relative PMPM
+### Contribution to the population's cost
 
-In analytics comparative or disease specific analytics, it is more common to calculate PMPM values at each level by dividing by the member months for that sub-group so that PMPM values are comparable across populations. For example, if you had a population of 12,000 members where 500 members had heart disease, and you wanted to compare their average per member per month cost with that of other populations, you would sum the total heart disease associated costs and divide by the member months for the 500 members with heart disease. This type of PMPM is *relative* to the sub-population of people with heart disease and can be accurately compared to other relative PMPM costs of other cohorts of people with heart disease. 
+Suppose the $10 million in our example is divided into mutually exclusive service categories. Dividing every category by the **same 12,000 member months** shows how much that category contributes to total PMPM.
+
+| Service category | Cost | Population member months | Contribution to PMPM |
+|---|---:|---:|---:|
+| Inpatient | $4,000,000 | 12,000 | $333.33 |
+| Office-based | $2,500,000 | 12,000 | $208.33 |
+| Outpatient | $2,500,000 | 12,000 | $208.33 |
+| Ancillary | $500,000 | 12,000 | $41.67 |
+| Other | $500,000 | 12,000 | $41.67 |
+| **Total** | **$10,000,000** | **12,000** | **$833.33** |
+
+The unrounded components add to the total. Display rounding may create a small difference; do the reconciliation before rounding.
+
+This is the right view for a question such as, “How much of our total spending comes from inpatient care?” People who had no inpatient care remain in the denominator.
+
+The additive property depends on the categories forming a partition of cost. If the same claim appears in both a diabetes category and a heart disease category, adding those PMPMs double-counts that claim. Use exclusive [service categories](../claims-groupers-and-algos/service-categories.qmd) when you need a cost reconciliation, and identify overlap when a clinical view intentionally allows it.
+
+### Cost within a subgroup
+
+Now suppose 100 people have diabetes and are covered for the full year. They contribute 1,200 member months, and their total medical cost is $1.8 million.
+
+Their **cohort PMPM** is $1.8 million ÷ 1,200 = **$1,500**. Their **contribution to overall PMPM** is $1.8 million ÷ 12,000 = **$150**. Those are two correct answers to different questions.
+
+Also distinguish **all cost incurred by people with diabetes** from **cost assigned to diabetes-related services**. Selecting a diabetes cohort does not mean every service it receives treats diabetes. Conversely, looking only at claims that carry a diabetes diagnosis will not capture all care associated with the condition.
+
+Define when cohort membership is established. A cohort defined using diagnoses from the entire year answers a different question from a cohort identified at the beginning of the year. Using future information can be reasonable for a retrospective description, but it is inappropriate for claiming that a prospective program knew those members' status at enrollment.
+
+## Calculate without multiplying the denominator
+
+A common SQL error is to join member months directly to claim lines and then count the joined rows. A member with twenty lines contributes twenty rows; a member with no claims may disappear entirely.
+
+Aggregate claims first, then join one row of cost to one row of coverage. This example assumes:
+
+- `medical_member_month` has one row per `data_source`, `person_id`, and `year_month`, after the coverage rule has been applied.
+- `final_medical_claim_line` contains the selected analytic representation of claims, with adjustments resolved appropriately.
+- `service_year_month` follows the incurred-date convention chosen for this analysis.
+- Claim inclusion already follows the selected benefit and service-date coverage rules. A match to a member month does not establish coverage on the specific service date when enrollment starts or ends mid-month.
+
+```sql
+with cost_by_member_month as (
+    select
+        data_source,
+        person_id,
+        service_year_month as year_month,
+        sum(paid_amount) as paid_amount
+    from final_medical_claim_line
+    group by data_source, person_id, service_year_month
+)
+
+select
+    mm.data_source,
+    mm.year_month,
+    count(*) as member_months,
+    sum(coalesce(c.paid_amount, 0)) as paid_amount,
+    1.0 * sum(coalesce(c.paid_amount, 0))
+        / nullif(count(*), 0) as paid_pmpm
+from medical_member_month as mm
+left join cost_by_member_month as c
+    on mm.data_source = c.data_source
+    and mm.person_id = c.person_id
+    and mm.year_month = c.year_month
+group by mm.data_source, mm.year_month
+```
+
+The table names are illustrative. This query retains enrolled people with no claims and avoids counting the same month once per claim. It measures matched cost only, so unmatched claims need a separate reconciliation. Before using it, investigate missing paid amounts; `SUM` ignores nulls, and an unknown payment is not evidence of zero expense.
+
+For a multi-month result, sum costs and member months, then divide. Do not take an unweighted average of monthly PMPMs when enrollment varies. A month with 100 member months should not carry the same weight as one with 10,000.
+
+## Explain the movement
+
+Once the ratio reconciles, break a change into interpretable pieces. For a service category with a defined unit of utilization:
+
+$$
+\frac{\text{Cost}}{\text{Member months}}
+=
+\frac{\text{Events}}{\text{Member months}}
+\times
+\frac{\text{Cost}}{\text{Events}}
+$$
+
+The identity helps distinguish more events from more cost per event. It holds when both terms use the same event and cost scope, with positive member months and at least one event. With no events, cost per event is undefined; report zero utilization separately. Cost per event can change because of prices, service intensity, case mix, or the way claims are grouped—not just because a provider charged more.
+
+A useful PMPM trend therefore includes the cost basis, enrollment definition, service period, as-of date, and major inclusion rules alongside the result. With those choices visible, the metric becomes something a team can investigate and reproduce.
