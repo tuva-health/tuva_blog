@@ -1,4 +1,6 @@
 [build]
+  # Both hosts build source from the repository root, overriding old UI settings.
+  base = "."
   publish = "_book"
   command = "curl -L -o quarto.tar.gz https://github.com/quarto-dev/quarto-cli/releases/download/v1.10.18/quarto-1.10.18-linux-amd64.tar.gz && tar -xzf quarto.tar.gz && export PATH=\"$PWD/quarto-1.10.18/bin:$PATH\" && bash build.sh"
 
